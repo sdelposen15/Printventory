@@ -2607,6 +2607,64 @@ ipcMain.handle('get-parent-models', async () => {
   }
 });
 
+ipcMain.handle('get-parent-card-tags', async (event, parentNames = []) => {
+  try {
+    if (!parentNames || parentNames.length === 0) {
+      return {};
+    }
+
+    const placeholders = parentNames.map(() => '?').join(', ');
+    const rows = db.prepare(`
+      SELECT m.parentModel as parentModel, t.name as tagName
+      FROM models m
+      JOIN model_tags mt ON mt.model_id = m.id
+      JOIN tags t ON t.id = mt.tag_id
+      WHERE m.parentModel IN (${placeholders})
+    `).all(...parentNames);
+
+    const tagsByParent = {};
+    rows.forEach(row => {
+      if (!tagsByParent[row.parentModel]) {
+        tagsByParent[row.parentModel] = new Set();
+      }
+      tagsByParent[row.parentModel].add(row.tagName);
+    });
+
+    const result = {};
+    Object.entries(tagsByParent).forEach(([parentName, tagSet]) => {
+      result[parentName] = Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+    });
+
+    return result;
+  } catch (error) {
+    console.error('Error getting parent card tags:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-parent-card-thumbnails', async (event, parentNames = []) => {
+  try {
+    if (!parentNames || parentNames.length === 0) {
+      return {};
+    }
+
+    const keys = parentNames.map(name => `parentThumbnail::${name}`);
+    const placeholders = keys.map(() => '?').join(', ');
+    const rows = db.prepare(`SELECT key, value FROM settings WHERE key IN (${placeholders})`).all(...keys);
+
+    const thumbnailsByParent = {};
+    rows.forEach(row => {
+      const parentName = row.key.replace('parentThumbnail::', '');
+      thumbnailsByParent[parentName] = row.value;
+    });
+
+    return thumbnailsByParent;
+  } catch (error) {
+    console.error('Error getting parent card thumbnails:', error);
+    throw error;
+  }
+});
+
 ipcMain.handle('get-all-tags', async () => {
   try {
     return db.prepare(`

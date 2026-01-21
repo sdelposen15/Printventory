@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electron', {
   getAllModels: (sortOption, limit) => ipcRenderer.invoke('get-all-models', sortOption, limit),
   getTotalModelCount: () => ipcRenderer.invoke('getTotalModelCount'),
   getParentModels: () => ipcRenderer.invoke('get-parent-models'),
+  getParentCardTags: (parentNames) => ipcRenderer.invoke('get-parent-card-tags', parentNames),
+  getParentCardThumbnails: (parentNames) => ipcRenderer.invoke('get-parent-card-thumbnails', parentNames),
   getAllTags: () => ipcRenderer.invoke('get-all-tags'),
   saveTag: (tagName) => ipcRenderer.invoke('save-tag', tagName),
   deleteTag: (tagId) => ipcRenderer.invoke('delete-tag', tagId),
@@ -194,4 +196,3 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDb: () => ipcRenderer.invoke('get-db'),
   // ... other exposed functions
 });
-

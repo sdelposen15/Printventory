@@ -18,6 +18,15 @@ const PAGE_SIZE = 100; // Number of models to keep in memory
 let allFilteredModels = []; // Store all filtered models (references only)
 let visibleModels = []; // Store currently visible models (full data)
 let currentGridView = 'detailed'; // Current grid view mode: 'list', 'preview', 'detailed'
+
+const PARENT_CARD_PREFIX = 'parent::';
+
+const isParentCardPath = (filePath) => typeof filePath === 'string' && filePath.startsWith(PARENT_CARD_PREFIX);
+
+const getParentNameFromPath = (filePath) => {
+  if (!isParentCardPath(filePath)) return '';
+  return filePath.slice(PARENT_CARD_PREFIX.length);
+};
 let currentPage = 0;
 let isVirtualScrolling = false; // Flag to track if virtual scrolling is active
 
@@ -368,6 +377,12 @@ function normalizePathForComparison(path) {
 
 async function updateModelElement(filePath) {
   try {
+    if (isParentCardPath(filePath)) {
+      if (typeof window.performCombinedSearch === 'function') {
+        await window.performCombinedSearch();
+      }
+      return;
+    }
     // Small delay to ensure database is updated
     await new Promise(resolve => setTimeout(resolve, 100));
     
@@ -1491,6 +1506,13 @@ async function showModelDetails(filePath) {
         parentSelect.appendChild(option);
       }
       parentSelect.value = storedValues['model-parent'];
+    }
+
+    const useParentThumbnailButton = document.getElementById('use-parent-thumbnail-button');
+    if (useParentThumbnailButton) {
+      const hasParent = Boolean(storedValues['model-parent']);
+      useParentThumbnailButton.disabled = !hasParent;
+      useParentThumbnailButton.style.opacity = hasParent ? '1' : '0.5';
     }
     
     document.getElementById('model-source').value = storedValues['model-source'];
@@ -8867,6 +8889,93 @@ document.addEventListener('DOMContentLoaded', () => {
 // Add this near the top with other constants
 const GC_INTERVAL = 100; // Number of models to process before garbage collection
 
+async function buildParentCardModels(files) {
+  const parentGroups = new Map();
+  const parentNames = [];
+
+  files.forEach(model => {
+    const parentName = (model.parentModel || '').trim();
+    if (!parentName) return;
+    if (!parentGroups.has(parentName)) {
+      parentGroups.set(parentName, []);
+      parentNames.push(parentName);
+    }
+    parentGroups.get(parentName).push(model);
+  });
+
+  if (parentNames.length === 0) {
+    return files;
+  }
+
+  let tagsByParent = {};
+  let thumbnailsByParent = {};
+  try {
+    [tagsByParent, thumbnailsByParent] = await Promise.all([
+      window.electron.getParentCardTags(parentNames),
+      window.electron.getParentCardThumbnails(parentNames)
+    ]);
+  } catch (error) {
+    console.error('Error loading parent card metadata:', error);
+  }
+
+  const addedParents = new Set();
+  const output = [];
+
+  const pickRepresentative = (models) => {
+    return models.find(model => model.thumbnail) || models[0];
+  };
+
+  const getFirstValue = (models, field) => {
+    for (const model of models) {
+      const value = model[field];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+    return '';
+  };
+
+  files.forEach(model => {
+    const parentName = (model.parentModel || '').trim();
+    if (!parentName) {
+      output.push(model);
+      return;
+    }
+
+    if (addedParents.has(parentName)) {
+      return;
+    }
+
+    const group = parentGroups.get(parentName) || [model];
+    const representative = pickRepresentative(group);
+    const thumbnailOverride = thumbnailsByParent[parentName];
+    const parentThumbnail = thumbnailOverride || representative.thumbnail || null;
+    const aggregatedTags = tagsByParent[parentName] || [];
+
+    output.push({
+      ...representative,
+      id: null,
+      filePath: `${PARENT_CARD_PREFIX}${parentName}`,
+      fileName: parentName,
+      parentModel: '',
+      designer: getFirstValue(group, 'designer'),
+      source: getFirstValue(group, 'source'),
+      notes: getFirstValue(group, 'notes'),
+      license: getFirstValue(group, 'license'),
+      tags: aggregatedTags,
+      thumbnail: parentThumbnail,
+      printed: group.length > 0 ? group.every(item => item.printed) : false,
+      isParentCard: true,
+      parentName,
+      childCount: group.length
+    });
+
+    addedParents.add(parentName);
+  });
+
+  return output;
+}
+
 // Update the renderFiles function to handle pagination
 async function renderFiles(files, skipThumbnail = false, viewEntireLibrary = false) {
   if (window.disableGridRefresh) {
@@ -8896,11 +9005,18 @@ async function renderFiles(files, skipThumbnail = false, viewEntireLibrary = fal
     console.log('Filtered from', originalCount, 'to', files.length, 'models');
   }
 
+  const parentFilter = document.getElementById('parent-select')?.value || '';
+  let filesToRender = files;
+
+  if (!parentFilter) {
+    filesToRender = await buildParentCardModels(files);
+  }
+
   // Use the new virtual grid implementation for better performance
-  renderVirtualGrid(files);
+  renderVirtualGrid(filesToRender);
 
   // Update counts
-  await updateModelCounts(files.length);
+  await updateModelCounts(filesToRender.length);
 
   // Handle thumbnail generation for visible items?
   // renderVirtualGrid handles creating items, but thumbnail generation might need to be triggered
@@ -8915,7 +9031,7 @@ async function renderFiles(files, skipThumbnail = false, viewEntireLibrary = fal
 
   // Trigger background thumbnail generation for files without thumbnails
   // This maintains the previous behavior but decouples it from the initial render
-  const filesWithoutThumbnails = files.filter(file => !file.thumbnail);
+  const filesWithoutThumbnails = filesToRender.filter(file => !file.thumbnail);
   if (filesWithoutThumbnails.length > 0) {
     // We can use the existing queue mechanism
     filesWithoutThumbnails.forEach(file => {
@@ -10409,7 +10525,55 @@ document.getElementById('cancel-parent-button')?.addEventListener('click', () =>
 // Add change event listeners for auto-save
 document.getElementById('model-parent').addEventListener('change', async (e) => {
   const filePath = getCurrentModelFilePath();
+  const useParentThumbnailButton = document.getElementById('use-parent-thumbnail-button');
+  if (useParentThumbnailButton) {
+    const hasParent = Boolean(e.target.value);
+    useParentThumbnailButton.disabled = !hasParent;
+    useParentThumbnailButton.style.opacity = hasParent ? '1' : '0.5';
+  }
   await autoSaveModel('parentModel', e.target.value, filePath);
+});
+
+document.getElementById('use-parent-thumbnail-button')?.addEventListener('click', async () => {
+  const filePath = getCurrentModelFilePath();
+  if (!filePath) {
+    return;
+  }
+
+  const model = await window.electron.getModel(filePath);
+  if (!model || !model.parentModel) {
+    await window.electron.showMessage('Parent Card', 'Set a parent model before choosing parent card images.');
+    return;
+  }
+
+  const parentName = model.parentModel.trim();
+  if (!parentName) {
+    await window.electron.showMessage('Parent Card', 'Set a parent model before choosing parent card images.');
+    return;
+  }
+
+  let thumbnailString = model.thumbnail || '';
+  try {
+    const thumbnails = await window.electron.getAllThumbnails(filePath);
+    if (thumbnails && thumbnails.length > 0) {
+      thumbnailString = thumbnails.join('::');
+    }
+  } catch (error) {
+    console.error('Error loading thumbnails for parent card:', error);
+  }
+
+  if (!thumbnailString) {
+    await window.electron.showMessage('Parent Card', 'No images available for this model yet.');
+    return;
+  }
+
+  await window.electron.saveSetting(`parentThumbnail::${parentName}`, thumbnailString);
+
+  if (typeof window.performCombinedSearch === 'function') {
+    await window.performCombinedSearch();
+  }
+
+  await window.electron.showMessage('Parent Card', `Updated images for parent "${parentName}".`);
 });
 
 document.getElementById('multi-parent').addEventListener('change', async (e) => {
@@ -11265,6 +11429,11 @@ function exitMultiEditMode() {
   document.getElementById('model-parent').value = '';
   document.getElementById('model-license').value = '';
   document.getElementById('model-tags').innerHTML = '';
+  const useParentThumbnailButton = document.getElementById('use-parent-thumbnail-button');
+  if (useParentThumbnailButton) {
+    useParentThumbnailButton.disabled = true;
+    useParentThumbnailButton.style.opacity = '0.5';
+  }
   
   // Clear the multi-edit tag container as well
   const multiTagsContainer = document.getElementById('multi-tags');
@@ -11969,8 +12138,15 @@ async function autoSaveModel(field, value, filePath) {
       await new Promise(resolve => setTimeout(resolve, 150));
     }
     
+    const parentFilter = document.getElementById('parent-select')?.value || '';
+    const shouldRefreshParentCards = !parentFilter && model.parentModel;
+
     // If this was called from the details panel, update the displayed file
-    await updateModelElement(filePath);
+    if (shouldRefreshParentCards && typeof window.performCombinedSearch === 'function') {
+      await window.performCombinedSearch();
+    } else {
+      await updateModelElement(filePath);
+    }
     
     // Also update the checkbox in the model details panel if it's showing this model
     if (field === 'printed') {
@@ -12438,30 +12614,42 @@ function createModelItem(model, viewMode = null) {
     item.classList.add('selected');
   }
 
+  if (model.isParentCard) {
+    item.classList.add('parent-card');
+  }
+
   // Print status element
   const printStatus = document.createElement('div');
-  printStatus.className = 'print-status' + (model.printed ? ' printed' : '');
-  printStatus.textContent = model.printed ? 'Printed' : 'Not Printed';
-  printStatus.style.cursor = 'pointer';
-  printStatus.title = 'Click to toggle printed status';
-  
-  // Add click handler to toggle printed status
-  printStatus.addEventListener('click', async (e) => {
-    e.preventDefault();
-    e.stopPropagation(); // Prevent triggering file item click
+  if (model.isParentCard) {
+    const partsLabel = model.childCount ? ` (${model.childCount} parts)` : '';
+    printStatus.className = 'print-status parent-status';
+    printStatus.textContent = `Parent Model${partsLabel}`;
+    printStatus.style.cursor = 'default';
+    printStatus.title = 'Parent model card';
+  } else {
+    printStatus.className = 'print-status' + (model.printed ? ' printed' : '');
+    printStatus.textContent = model.printed ? 'Printed' : 'Not Printed';
+    printStatus.style.cursor = 'pointer';
+    printStatus.title = 'Click to toggle printed status';
     
-    // Get current model state to ensure we have the latest printed status
-    const currentModel = await window.electron.getModel(model.filePath);
-    if (currentModel) {
-      const newPrintedStatus = !currentModel.printed;
-      await autoSaveModel('printed', newPrintedStatus, model.filePath);
-    }
-  });
+    // Add click handler to toggle printed status
+    printStatus.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // Prevent triggering file item click
+      
+      // Get current model state to ensure we have the latest printed status
+      const currentModel = await window.electron.getModel(model.filePath);
+      if (currentModel) {
+        const newPrintedStatus = !currentModel.printed;
+        await autoSaveModel('printed', newPrintedStatus, model.filePath);
+      }
+    });
+  }
   
   item.appendChild(printStatus);
 
   // Archive status element (for models inside ZIP archives)
-  const isZipEntry = model.filePath && model.filePath.includes('::');
+  const isZipEntry = !model.isParentCard && model.filePath && model.filePath.includes('::');
   let archiveStatus = null;
   if (isZipEntry) {
     archiveStatus = document.createElement('div');
@@ -12505,7 +12693,7 @@ function createModelItem(model, viewMode = null) {
   
   // For detailed view, if we don't have multiple thumbnails in the model object,
   // try to fetch from database asynchronously (but don't block rendering)
-  if (view === 'detailed' && !hasMultipleThumbnails && model.filePath) {
+  if (view === 'detailed' && !hasMultipleThumbnails && model.filePath && !model.isParentCard) {
     window.electron.getAllThumbnails(model.filePath).then(allThumbs => {
       if (allThumbs && allThumbs.length > 1) {
         // Find the item and update it
@@ -12633,6 +12821,9 @@ function createModelItem(model, viewMode = null) {
         
         // Save after 2 seconds of no navigation
         wrapper._saveTimeout = setTimeout(async () => {
+          if (model.isParentCard) {
+            return;
+          }
           try {
             const idxToSave = parseInt(wrapper.dataset.currentIndex) || 0;
             const thumbs = JSON.parse(wrapper.dataset.thumbnails);
@@ -12724,7 +12915,7 @@ function createModelItem(model, viewMode = null) {
     thumbnailContainer.appendChild(img);
 
     // Queue thumbnail generation if not already pending
-    if (!pendingThumbnails.has(model.filePath)) {
+    if (!model.isParentCard && !pendingThumbnails.has(model.filePath)) {
       pendingThumbnails.add(model.filePath);
 
       renderQueue.push({
@@ -12799,6 +12990,7 @@ function createModelItem(model, viewMode = null) {
 
   // Get parent directory from file path (needed for list view)
   const getParentDirectory = (filePath) => {
+    if (model.isParentCard) return '';
     if (!filePath) return '';
     // Handle both Windows (\) and Unix (/) paths
     const lastSlash = Math.max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/'));
@@ -13586,7 +13778,11 @@ function createModelItem(model, viewMode = null) {
         }
       };
       
-      loadTags();
+      if (!model.isParentCard) {
+        loadTags();
+      } else {
+        tagsItem.remove();
+      }
     }
     
     // Show file details in detailed view
@@ -13599,17 +13795,31 @@ function createModelItem(model, viewMode = null) {
   item.appendChild(fileInfo);
 
   // Add click event handler for model selection
-  item.addEventListener('click', (e) => {
-    // Check if ctrl or cmd key is pressed for multi-select
-    if (e.ctrlKey || e.metaKey) {
-      handleFileClick(e, model.filePath);
-    } else {
-      toggleModelSelection(item, model.filePath);
-    }
-  });
+  if (model.isParentCard) {
+    item.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const parentSelect = document.getElementById('parent-select');
+      if (parentSelect) {
+        parentSelect.value = model.parentName || model.fileName || '';
+        if (typeof window.performCombinedSearch === 'function') {
+          await window.performCombinedSearch();
+        }
+      }
+    });
+  } else {
+    item.addEventListener('click', (e) => {
+      // Check if ctrl or cmd key is pressed for multi-select
+      if (e.ctrlKey || e.metaKey) {
+        handleFileClick(e, model.filePath);
+      } else {
+        toggleModelSelection(item, model.filePath);
+      }
+    });
 
-  // Add context menu
-  addContextMenuHandler(item, model.filePath);
+    // Add context menu
+    addContextMenuHandler(item, model.filePath);
+  }
 
   return item;
 }
