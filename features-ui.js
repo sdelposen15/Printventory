@@ -1234,3 +1234,711 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('Error initializing enhanced features:', error);
   }
 });
+
+// ========================================================================
+// FEATURE 11: Model Groups (Folders) with Hierarchical Tags
+// ========================================================================
+
+let allGroups = [];
+let selectedModels = new Set();
+let isMultiSelectMode = false;
+
+// Initialize group features
+function initializeGroupFeatures() {
+  // Group Manager
+  document.getElementById('create-new-group-btn')?.addEventListener('click', showCreateGroupDialog);
+  document.getElementById('save-group-btn')?.addEventListener('click', saveGroup);
+  document.getElementById('cancel-group-btn')?.addEventListener('click', () => {
+    document.getElementById('create-group-dialog').close();
+  });
+
+  // Create Group from Selection
+  document.getElementById('create-selection-group-btn')?.addEventListener('click', createGroupFromSelection);
+  document.getElementById('cancel-selection-group-btn')?.addEventListener('click', () => {
+    document.getElementById('create-group-from-selection-dialog').close();
+  });
+
+  // Group Thumbnail Preview
+  document.getElementById('group-thumbnail-file')?.addEventListener('change', previewGroupThumbnail);
+
+  // Group Tag Manager
+  document.getElementById('group-tag-input')?.addEventListener('input', showGroupTagSuggestions);
+  document.getElementById('group-tag-input')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTagToGroup();
+    }
+  });
+
+  // Hierarchical Search
+  document.getElementById('do-hierarchical-search-btn')?.addEventListener('click', performHierarchicalSearch);
+
+  // Initialize multi-select mode listeners
+  initializeMultiSelect();
+}
+
+// Show Group Manager
+async function showGroupManager() {
+  try {
+    allGroups = await window.electron.getModelGroups();
+    renderGroupsGrid();
+    document.getElementById('group-manager-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading groups:', error);
+    alert('Failed to load groups: ' + error.message);
+  }
+}
+
+// Render Groups Grid
+function renderGroupsGrid() {
+  const grid = document.getElementById('groups-grid');
+  if (!grid) return;
+
+  if (allGroups.length === 0) {
+    grid.innerHTML = '<p style="text-align: center; color: #888;">No groups yet. Create your first group!</p>';
+    return;
+  }
+
+  grid.innerHTML = allGroups.map(group => `
+    <div class="group-card ${group.parent_group_id ? 'has-parent' : ''}" data-group-id="${group.id}">
+      <div class="group-actions">
+        <button class="group-action-btn" onclick="editGroup(${group.id})" title="Edit">✏️</button>
+        <button class="group-action-btn" onclick="manageGroupTags(${group.id})" title="Manage Tags">🏷️</button>
+        <button class="group-action-btn" onclick="deleteGroup(${group.id})" title="Delete">🗑️</button>
+      </div>
+      <div class="group-thumbnail ${group.thumbnail ? '' : 'placeholder'}" onclick="openGroup(${group.id})">
+        ${group.thumbnail ? `<img src="${group.thumbnail}" alt="${group.name}">` : '📁'}
+      </div>
+      <div class="group-info" onclick="openGroup(${group.id})">
+        <h4>${escapeHtml(group.name)}</h4>
+        <p>${group.description || 'No description'}</p>
+      </div>
+      <div class="group-stats">
+        <span>📦 ${group.model_count || 0} models</span>
+        ${group.tag_names ? `<span>🏷️ ${group.tag_names.split(',').length}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// Show Create Group Dialog
+async function showCreateGroupDialog() {
+  document.getElementById('create-group-title').textContent = 'Create Group';
+  document.getElementById('edit-group-id').value = '';
+  document.getElementById('group-name').value = '';
+  document.getElementById('group-description').value = '';
+  document.getElementById('group-thumbnail-file').value = '';
+  document.getElementById('group-thumbnail-preview').innerHTML = '';
+  document.getElementById('group-thumbnail-preview').classList.remove('has-image');
+
+  // Populate parent group dropdown
+  await populateGroupParentDropdown();
+
+  document.getElementById('create-group-dialog').showModal();
+}
+
+// Populate Parent Group Dropdown
+async function populateGroupParentDropdown(currentGroupId = null) {
+  const select = document.getElementById('group-parent');
+  const selectionSelect = document.getElementById('selection-group-parent');
+
+  const groups = await window.electron.getModelGroups();
+  const options = groups
+    .filter(g => g.id !== currentGroupId) // Don't allow self as parent
+    .map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`)
+    .join('');
+
+  if (select) {
+    select.innerHTML = '<option value="">None (Top Level)</option>' + options;
+  }
+  if (selectionSelect) {
+    selectionSelect.innerHTML = '<option value="">None (Top Level)</option>' + options;
+  }
+}
+
+// Preview Group Thumbnail
+function previewGroupThumbnail(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const preview = document.getElementById('group-thumbnail-preview');
+    preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+    preview.classList.add('has-image');
+  };
+  reader.readAsDataURL(file);
+}
+
+// Save Group
+async function saveGroup(event) {
+  event.preventDefault();
+
+  const id = document.getElementById('edit-group-id').value;
+  const name = document.getElementById('group-name').value.trim();
+  const description = document.getElementById('group-description').value.trim();
+  const parentId = document.getElementById('group-parent').value;
+  const thumbnailFile = document.getElementById('group-thumbnail-file').files[0];
+
+  if (!name) {
+    alert('Please enter a group name');
+    return;
+  }
+
+  try {
+    let thumbnailBase64 = null;
+    if (thumbnailFile) {
+      thumbnailBase64 = await fileToBase64(thumbnailFile);
+    }
+
+    const groupData = {
+      name,
+      description,
+      parent_group_id: parentId || null,
+      thumbnail: thumbnailBase64
+    };
+
+    if (id) {
+      groupData.id = parseInt(id);
+      await window.electron.updateModelGroup(groupData);
+    } else {
+      await window.electron.createModelGroup(groupData);
+    }
+
+    document.getElementById('create-group-dialog').close();
+    showGroupManager(); // Refresh
+    showNotification(`Group "${name}" ${id ? 'updated' : 'created'} successfully!`);
+  } catch (error) {
+    console.error('Error saving group:', error);
+    alert('Failed to save group: ' + error.message);
+  }
+}
+
+// Edit Group
+async function editGroup(groupId) {
+  try {
+    const group = await window.electron.getModelGroup(groupId);
+    if (!group) return;
+
+    document.getElementById('create-group-title').textContent = 'Edit Group';
+    document.getElementById('edit-group-id').value = group.id;
+    document.getElementById('group-name').value = group.name;
+    document.getElementById('group-description').value = group.description || '';
+
+    await populateGroupParentDropdown(group.id);
+    document.getElementById('group-parent').value = group.parent_group_id || '';
+
+    if (group.thumbnail) {
+      const preview = document.getElementById('group-thumbnail-preview');
+      preview.innerHTML = `<img src="${group.thumbnail}" alt="Preview">`;
+      preview.classList.add('has-image');
+    }
+
+    document.getElementById('create-group-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading group:', error);
+    alert('Failed to load group: ' + error.message);
+  }
+}
+
+// Delete Group
+async function deleteGroup(groupId) {
+  const group = allGroups.find(g => g.id === groupId);
+  if (!group) return;
+
+  if (!confirm(`Delete group "${group.name}"?\n\nThis will not delete the models, only the group.`)) {
+    return;
+  }
+
+  try {
+    await window.electron.deleteModelGroup(groupId);
+    showGroupManager(); // Refresh
+    showNotification(`Group "${group.name}" deleted successfully!`);
+  } catch (error) {
+    console.error('Error deleting group:', error);
+    alert('Failed to delete group: ' + error.message);
+  }
+}
+
+// Open Group (show models in group)
+async function openGroup(groupId) {
+  try {
+    const group = await window.electron.getModelGroup(groupId);
+    if (!group || !group.models) return;
+
+    // Close group manager
+    document.getElementById('group-manager-dialog').close();
+
+    // Filter main view to show only these models
+    // This assumes there's a function to display specific models
+    if (typeof displayModels === 'function') {
+      displayModels(group.models);
+    }
+
+    showNotification(`Showing ${group.models.length} models from "${group.name}"`);
+  } catch (error) {
+    console.error('Error opening group:', error);
+    alert('Failed to open group: ' + error.message);
+  }
+}
+
+// Show Create Group from Selection Dialog
+async function showCreateGroupFromSelection() {
+  if (selectedModels.size === 0) {
+    alert('Please select at least one model first');
+    return;
+  }
+
+  document.getElementById('selected-models-count').textContent = selectedModels.size;
+  document.getElementById('selection-group-name').value = '';
+  document.getElementById('selection-group-description').value = '';
+  document.getElementById('use-first-model-thumbnail').checked = true;
+
+  await populateGroupParentDropdown();
+
+  document.getElementById('create-group-from-selection-dialog').showModal();
+}
+
+// Create Group from Selection
+async function createGroupFromSelection(event) {
+  event.preventDefault();
+
+  const name = document.getElementById('selection-group-name').value.trim();
+  const description = document.getElementById('selection-group-description').value.trim();
+  const parentId = document.getElementById('selection-group-parent').value;
+  const useFirstThumbnail = document.getElementById('use-first-model-thumbnail').checked;
+
+  if (!name) {
+    alert('Please enter a group name');
+    return;
+  }
+
+  try {
+    // Create group
+    const groupData = {
+      name,
+      description,
+      parent_group_id: parentId || null
+    };
+
+    const groupId = await window.electron.createModelGroup(groupData);
+
+    // Add models to group
+    const modelIds = Array.from(selectedModels);
+    await window.electron.addModelsToGroup(groupId, modelIds);
+
+    // Use first model's thumbnail if requested
+    if (useFirstThumbnail && modelIds.length > 0) {
+      const firstModel = await window.electron.getModel(modelIds[0]);
+      if (firstModel && firstModel.thumbnail) {
+        await window.electron.updateModelGroup({
+          id: groupId,
+          thumbnail: firstModel.thumbnail
+        });
+      }
+    }
+
+    document.getElementById('create-group-from-selection-dialog').close();
+    clearSelection();
+    showNotification(`Group "${name}" created with ${modelIds.length} models!`);
+  } catch (error) {
+    console.error('Error creating group from selection:', error);
+    alert('Failed to create group: ' + error.message);
+  }
+}
+
+// Manage Group Tags
+async function manageGroupTags(groupId) {
+  try {
+    const group = await window.electron.getModelGroup(groupId);
+    if (!group) return;
+
+    document.getElementById('tag-manager-group-id').value = groupId;
+    document.getElementById('tag-manager-group-name').textContent = group.name;
+    document.getElementById('group-tag-input').value = '';
+
+    // Load current tags
+    await refreshGroupTags(groupId);
+
+    document.getElementById('group-tag-manager-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading group tags:', error);
+    alert('Failed to load group tags: ' + error.message);
+  }
+}
+
+// Refresh Group Tags Display
+async function refreshGroupTags(groupId) {
+  try {
+    const tags = await window.electron.getGroupTags(groupId);
+    const container = document.getElementById('group-current-tags');
+
+    if (tags.length === 0) {
+      container.innerHTML = '<p style="color: #888; margin: 10px;">No tags assigned</p>';
+      return;
+    }
+
+    container.innerHTML = tags.map(tag => `
+      <div class="tag-item">
+        <span>${escapeHtml(tag.name)}</span>
+        <span class="remove-tag" onclick="removeTagFromGroup(${groupId}, ${tag.id})">×</span>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Error refreshing group tags:', error);
+  }
+}
+
+// Show Tag Suggestions for Groups
+async function showGroupTagSuggestions(event) {
+  const input = event.target.value.trim();
+  const suggestionsDiv = document.getElementById('group-tag-suggestions');
+
+  if (input.length < 1) {
+    suggestionsDiv.classList.remove('active');
+    return;
+  }
+
+  try {
+    const allTags = await window.electron.getAllTags();
+    const matches = allTags.filter(tag =>
+      tag.name.toLowerCase().includes(input.toLowerCase())
+    );
+
+    if (matches.length === 0) {
+      suggestionsDiv.innerHTML = '<div class="tag-suggestion-item">Press Enter to create new tag</div>';
+    } else {
+      suggestionsDiv.innerHTML = matches.map(tag => `
+        <div class="tag-suggestion-item" onclick="selectGroupTag('${escapeHtml(tag.name)}')">
+          ${escapeHtml(tag.name)}
+        </div>
+      `).join('');
+    }
+
+    suggestionsDiv.classList.add('active');
+  } catch (error) {
+    console.error('Error loading tag suggestions:', error);
+  }
+}
+
+// Select Group Tag from Suggestions
+function selectGroupTag(tagName) {
+  document.getElementById('group-tag-input').value = tagName;
+  document.getElementById('group-tag-suggestions').classList.remove('active');
+  addTagToGroup();
+}
+
+// Add Tag to Group
+async function addTagToGroup() {
+  const groupId = parseInt(document.getElementById('tag-manager-group-id').value);
+  const tagName = document.getElementById('group-tag-input').value.trim();
+
+  if (!tagName) return;
+
+  try {
+    // Create tag if doesn't exist
+    let tagId;
+    const allTags = await window.electron.getAllTags();
+    const existingTag = allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+
+    if (existingTag) {
+      tagId = existingTag.id;
+    } else {
+      tagId = await window.electron.createTag(tagName);
+    }
+
+    // Add tag to group
+    await window.electron.addTagsToGroup(groupId, [tagId]);
+
+    // Refresh display
+    await refreshGroupTags(groupId);
+
+    // Clear input
+    document.getElementById('group-tag-input').value = '';
+    document.getElementById('group-tag-suggestions').classList.remove('active');
+
+    showNotification(`Tag "${tagName}" added to group`);
+  } catch (error) {
+    console.error('Error adding tag to group:', error);
+    alert('Failed to add tag: ' + error.message);
+  }
+}
+
+// Remove Tag from Group
+async function removeTagFromGroup(groupId, tagId) {
+  try {
+    await window.electron.removeTagsFromGroup(groupId, [tagId]);
+    await refreshGroupTags(groupId);
+    showNotification('Tag removed from group');
+  } catch (error) {
+    console.error('Error removing tag from group:', error);
+    alert('Failed to remove tag: ' + error.message);
+  }
+}
+
+// Initialize Multi-Select Mode
+function initializeMultiSelect() {
+  // Add event listener to toggle multi-select mode
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      if (!isMultiSelectMode) {
+        enableMultiSelectMode();
+      }
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (!e.ctrlKey && !e.metaKey) {
+      // Keep mode active if there are selections
+      if (selectedModels.size === 0) {
+        disableMultiSelectMode();
+      }
+    }
+  });
+}
+
+// Enable Multi-Select Mode
+function enableMultiSelectMode() {
+  isMultiSelectMode = true;
+  document.body.classList.add('multi-select-mode');
+
+  // Show banner
+  const banner = getOrCreateMultiSelectBanner();
+  banner.classList.add('active');
+
+  // Show all checkboxes
+  document.querySelectorAll('.model-checkbox').forEach(cb => {
+    cb.style.opacity = '1';
+  });
+}
+
+// Disable Multi-Select Mode
+function disableMultiSelectMode() {
+  isMultiSelectMode = false;
+  document.body.classList.remove('multi-select-mode');
+
+  const banner = document.getElementById('multi-select-banner');
+  if (banner) {
+    banner.classList.remove('active');
+  }
+}
+
+// Get or Create Multi-Select Banner
+function getOrCreateMultiSelectBanner() {
+  let banner = document.getElementById('multi-select-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'multi-select-banner';
+    banner.className = 'multi-select-banner';
+    banner.innerHTML = `
+      <span id="selection-count">0 selected</span>
+      <button onclick="showCreateGroupFromSelection()">Create Group</button>
+      <button onclick="addSelectedToExistingGroup()">Add to Group</button>
+      <button onclick="clearSelection()">Clear</button>
+    `;
+    document.body.appendChild(banner);
+  }
+  return banner;
+}
+
+// Toggle Model Selection
+function toggleModelSelection(modelId, checkbox) {
+  if (checkbox.checked) {
+    selectedModels.add(modelId);
+    checkbox.closest('.model-item')?.classList.add('selected');
+  } else {
+    selectedModels.delete(modelId);
+    checkbox.closest('.model-item')?.classList.remove('selected');
+  }
+
+  updateSelectionCount();
+
+  if (selectedModels.size > 0) {
+    enableMultiSelectMode();
+  } else if (!event.ctrlKey && !event.metaKey) {
+    disableMultiSelectMode();
+  }
+}
+
+// Update Selection Count
+function updateSelectionCount() {
+  const countSpan = document.getElementById('selection-count');
+  if (countSpan) {
+    countSpan.textContent = `${selectedModels.size} selected`;
+  }
+}
+
+// Clear Selection
+function clearSelection() {
+  selectedModels.clear();
+  document.querySelectorAll('.model-checkbox').forEach(cb => {
+    cb.checked = false;
+  });
+  document.querySelectorAll('.model-item.selected').forEach(item => {
+    item.classList.remove('selected');
+  });
+  disableMultiSelectMode();
+  updateSelectionCount();
+}
+
+// Add Selected to Existing Group
+async function addSelectedToExistingGroup() {
+  if (selectedModels.size === 0) {
+    alert('No models selected');
+    return;
+  }
+
+  try {
+    const groups = await window.electron.getModelGroups();
+
+    if (groups.length === 0) {
+      alert('No groups available. Create a group first.');
+      return;
+    }
+
+    // Show simple selection dialog
+    const groupName = prompt('Enter group name:\n\n' + groups.map(g => g.name).join('\n'));
+    if (!groupName) return;
+
+    const group = groups.find(g => g.name === groupName);
+    if (!group) {
+      alert('Group not found');
+      return;
+    }
+
+    const modelIds = Array.from(selectedModels);
+    await window.electron.addModelsToGroup(group.id, modelIds);
+
+    clearSelection();
+    showNotification(`Added ${modelIds.length} models to "${group.name}"`);
+  } catch (error) {
+    console.error('Error adding to group:', error);
+    alert('Failed to add to group: ' + error.message);
+  }
+}
+
+// Perform Hierarchical Search
+async function performHierarchicalSearch() {
+  const query = document.getElementById('hier-search-query').value.trim();
+  const searchModels = document.getElementById('search-models').checked;
+  const searchGroups = document.getElementById('search-groups').checked;
+  const searchTags = document.getElementById('search-tags').checked;
+
+  if (!query) {
+    alert('Please enter a search query');
+    return;
+  }
+
+  try {
+    const results = await window.electron.searchAllLevels({
+      query,
+      searchModels,
+      searchGroups,
+      searchTags
+    });
+
+    renderHierarchicalSearchResults(results);
+  } catch (error) {
+    console.error('Error performing hierarchical search:', error);
+    alert('Search failed: ' + error.message);
+  }
+}
+
+// Render Hierarchical Search Results
+function renderHierarchicalSearchResults(results) {
+  const container = document.getElementById('hierarchical-search-results');
+
+  if (!results || (results.models?.length === 0 && results.groups?.length === 0)) {
+    container.innerHTML = '<p style="text-align: center; color: #888;">No results found</p>';
+    return;
+  }
+
+  let html = '';
+
+  if (results.groups?.length > 0) {
+    html += '<h4 style="margin-top: 0;">Groups</h4>';
+    results.groups.forEach(group => {
+      html += `
+        <div class="search-result-item" onclick="openGroup(${group.id})">
+          <span class="search-result-type group">GROUP</span>
+          <span class="search-result-name">${escapeHtml(group.name)}</span>
+          <div class="search-result-path">${group.model_count || 0} models</div>
+        </div>
+      `;
+    });
+  }
+
+  if (results.models?.length > 0) {
+    html += '<h4>Models</h4>';
+    results.models.forEach(model => {
+      html += `
+        <div class="search-result-item" onclick="viewModelDetails(${model.id})">
+          <span class="search-result-type model">MODEL</span>
+          <span class="search-result-name">${escapeHtml(model.fileName)}</span>
+          <div class="search-result-path">${escapeHtml(model.filePath)}</div>
+        </div>
+      `;
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+// Helper: Convert File to Base64
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Helper: Escape HTML
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Helper: Show Notification
+function showNotification(message) {
+  // Simple notification - can be enhanced with a toast library
+  console.log('Notification:', message);
+
+  // If there's a notification element, use it
+  const notif = document.getElementById('notification');
+  if (notif) {
+    notif.textContent = message;
+    notif.style.display = 'block';
+    setTimeout(() => {
+      notif.style.display = 'none';
+    }, 3000);
+  } else {
+    // Fallback to alert for important messages
+    if (message.includes('error') || message.includes('failed')) {
+      alert(message);
+    }
+  }
+}
+
+// Initialize on load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeGroupFeatures);
+} else {
+  initializeGroupFeatures();
+}
+
+// Make functions globally available
+window.showGroupManager = showGroupManager;
+window.editGroup = editGroup;
+window.deleteGroup = deleteGroup;
+window.openGroup = openGroup;
+window.manageGroupTags = manageGroupTags;
+window.removeTagFromGroup = removeTagFromGroup;
+window.selectGroupTag = selectGroupTag;
+window.toggleModelSelection = toggleModelSelection;
+window.clearSelection = clearSelection;
+window.showCreateGroupFromSelection = showCreateGroupFromSelection;
+window.addSelectedToExistingGroup = addSelectedToExistingGroup;
