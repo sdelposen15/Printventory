@@ -1687,6 +1687,391 @@ docker run -d --name printventory-server -p 5000:5000 -v printventory-data:/root
     </form>
   </dialog>
 
+  <!-- ========================================================================
+       PRIORITY FEATURES DIALOGS
+       ======================================================================== -->
+
+  <!-- FEATURE 12: Filament Inventory Manager -->
+  <dialog id="filament-inventory-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Filament Inventory</h3>
+      <div class="form-group">
+        <button type="button" id="add-spool-btn" class="action-button">+ Add Spool</button>
+        <button type="button" id="low-stock-alert-btn" class="secondary-button">🔔 Low Stock</button>
+        <button type="button" id="filament-stats-btn" class="secondary-button">📊 Statistics</button>
+      </div>
+      <div id="spools-grid" class="spools-grid"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 12: Add/Edit Spool Dialog -->
+  <dialog id="add-spool-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="spool-dialog-title">Add Filament Spool</h3>
+      <input type="hidden" id="edit-spool-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="spool-brand">Brand: *</label>
+          <input type="text" id="spool-brand" placeholder="Hatchbox, eSun, etc." required>
+        </div>
+        <div class="form-group">
+          <label for="spool-material">Material: *</label>
+          <select id="spool-material" required>
+            <option value="">Select...</option>
+            <option value="PLA">PLA</option>
+            <option value="PETG">PETG</option>
+            <option value="ABS">ABS</option>
+            <option value="TPU">TPU</option>
+            <option value="Nylon">Nylon</option>
+            <option value="ASA">ASA</option>
+            <option value="PC">Polycarbonate</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="spool-color">Color: *</label>
+          <input type="text" id="spool-color" placeholder="Red, Blue, Black, etc." required>
+        </div>
+        <div class="form-group">
+          <label for="spool-diameter">Diameter (mm):</label>
+          <select id="spool-diameter">
+            <option value="1.75">1.75mm</option>
+            <option value="2.85">2.85mm</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="spool-weight-total">Total Weight (g): *</label>
+          <input type="number" id="spool-weight-total" placeholder="1000" required>
+        </div>
+        <div class="form-group">
+          <label for="spool-weight-remaining">Remaining (g):</label>
+          <input type="number" id="spool-weight-remaining" placeholder="1000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="spool-cost">Cost ($):</label>
+          <input type="number" step="0.01" id="spool-cost" placeholder="19.99">
+        </div>
+        <div class="form-group">
+          <label for="spool-purchase-date">Purchase Date:</label>
+          <input type="date" id="spool-purchase-date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="spool-location">Storage Location:</label>
+        <input type="text" id="spool-location" placeholder="Shelf A, Drawer 3, etc.">
+      </div>
+      <div class="form-group">
+        <label for="spool-barcode">Barcode/QR Code:</label>
+        <input type="text" id="spool-barcode" placeholder="Optional unique identifier">
+      </div>
+      <div class="form-group">
+        <label for="spool-notes">Notes:</label>
+        <textarea id="spool-notes" rows="3" placeholder="Any additional notes..."></textarea>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-spool-btn">Save</button>
+        <button type="button" id="cancel-spool-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 12: Filament Statistics Dialog -->
+  <dialog id="filament-stats-dialog" class="modal">
+    <form method="dialog">
+      <h3>Filament Statistics</h3>
+      <div id="filament-stats-content" class="stats-content"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 13: Cost Tracking Dashboard -->
+  <dialog id="cost-tracking-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Cost Tracking</h3>
+      <div class="form-group">
+        <button type="button" id="cost-settings-btn" class="secondary-button">⚙️ Settings</button>
+        <select id="cost-timerange">
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
+          <option value="all">All Time</option>
+        </select>
+      </div>
+      <div id="cost-stats-grid" class="stats-grid"></div>
+      <div id="cost-chart-container"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 13: Cost Settings Dialog -->
+  <dialog id="cost-settings-dialog" class="modal">
+    <form method="dialog">
+      <h3>Cost Settings</h3>
+      <div class="form-group">
+        <label for="electricity-rate">Electricity Rate (per kWh):</label>
+        <input type="number" step="0.01" id="electricity-rate" placeholder="0.12">
+      </div>
+      <div class="form-group">
+        <label for="currency-select">Currency:</label>
+        <select id="currency-select">
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+          <option value="GBP">GBP (£)</option>
+          <option value="CAD">CAD ($)</option>
+          <option value="AUD">AUD ($)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="printer-wattage">Printer Wattage (W):</label>
+        <input type="number" id="printer-wattage" placeholder="200">
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-cost-settings-btn">Save</button>
+        <button type="button" id="cancel-cost-settings-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 14: Slicer Profiles Manager -->
+  <dialog id="slicer-profiles-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Slicer Profiles</h3>
+      <div class="form-group">
+        <button type="button" id="add-slicer-profile-btn" class="action-button">+ Add Profile</button>
+        <select id="filter-slicer">
+          <option value="">All Slicers</option>
+        </select>
+      </div>
+      <div id="slicer-profiles-list" class="profiles-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 14: Add/Edit Slicer Profile -->
+  <dialog id="add-slicer-profile-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="profile-dialog-title">Add Slicer Profile</h3>
+      <input type="hidden" id="edit-profile-id">
+      <div class="form-group">
+        <label for="profile-name">Profile Name: *</label>
+        <input type="text" id="profile-name" placeholder="PLA Standard" required>
+      </div>
+      <div class="form-group">
+        <label for="profile-slicer">Slicer: *</label>
+        <select id="profile-slicer" required></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="profile-quality">Quality:</label>
+          <select id="profile-quality">
+            <option value="draft">Draft</option>
+            <option value="standard">Standard</option>
+            <option value="fine">Fine</option>
+            <option value="ultra">Ultra Fine</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="profile-material">Material:</label>
+          <select id="profile-material">
+            <option value="PLA">PLA</option>
+            <option value="PETG">PETG</option>
+            <option value="ABS">ABS</option>
+            <option value="TPU">TPU</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="profile-layer-height">Layer Height (mm):</label>
+          <input type="number" step="0.01" id="profile-layer-height" placeholder="0.2">
+        </div>
+        <div class="form-group">
+          <label for="profile-infill">Infill (%):</label>
+          <input type="number" id="profile-infill" placeholder="20">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="profile-supports">
+          Requires Supports
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="profile-path">Profile File Path:</label>
+        <input type="text" id="profile-path" placeholder="/path/to/profile.ini">
+      </div>
+      <div class="form-group">
+        <label for="profile-notes">Notes:</label>
+        <textarea id="profile-notes" rows="3"></textarea>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-profile-btn">Save</button>
+        <button type="button" id="cancel-profile-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 15: Print Calendar -->
+  <dialog id="print-calendar-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Print Calendar</h3>
+      <div class="form-group">
+        <button type="button" id="schedule-print-btn" class="action-button">+ Schedule Print</button>
+        <button type="button" id="view-projects-btn" class="secondary-button">📋 Projects</button>
+      </div>
+      <div id="calendar-container" class="calendar-container"></div>
+      <div id="scheduled-prints-list" class="scheduled-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 15: Schedule Print Dialog -->
+  <dialog id="schedule-print-dialog" class="modal">
+    <form method="dialog">
+      <h3>Schedule Print</h3>
+      <input type="hidden" id="edit-schedule-id">
+      <div class="form-group">
+        <label for="schedule-model">Model: *</label>
+        <select id="schedule-model" required></select>
+      </div>
+      <div class="form-group">
+        <label for="schedule-date">Scheduled Date: *</label>
+        <input type="date" id="schedule-date" required>
+      </div>
+      <div class="form-group">
+        <label for="schedule-deadline">Deadline:</label>
+        <input type="date" id="schedule-deadline">
+      </div>
+      <div class="form-group">
+        <label for="schedule-priority">Priority:</label>
+        <select id="schedule-priority">
+          <option value="low">Low</option>
+          <option value="normal" selected>Normal</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="schedule-notes">Notes:</label>
+        <textarea id="schedule-notes" rows="3"></textarea>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-schedule-btn">Schedule</button>
+        <button type="button" id="cancel-schedule-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 15: Print Projects Manager -->
+  <dialog id="print-projects-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Print Projects</h3>
+      <div class="form-group">
+        <button type="button" id="create-project-btn" class="action-button">+ Create Project</button>
+      </div>
+      <div id="projects-list" class="projects-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 15: Create/Edit Project Dialog -->
+  <dialog id="create-project-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="project-dialog-title">Create Project</h3>
+      <input type="hidden" id="edit-project-id">
+      <div class="form-group">
+        <label for="project-name">Project Name: *</label>
+        <input type="text" id="project-name" placeholder="Multi-part Assembly" required>
+      </div>
+      <div class="form-group">
+        <label for="project-description">Description:</label>
+        <textarea id="project-description" rows="3" placeholder="Project details..."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="project-deadline">Deadline:</label>
+        <input type="date" id="project-deadline">
+      </div>
+      <div class="form-group">
+        <label for="project-status">Status:</label>
+        <select id="project-status">
+          <option value="active">Active</option>
+          <option value="on-hold">On Hold</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-project-btn">Save</button>
+        <button type="button" id="cancel-project-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 16: Community Sources Manager -->
+  <dialog id="community-sources-dialog" class="modal">
+    <form method="dialog">
+      <h3>Community Platform Integration</h3>
+      <div class="form-group">
+        <button type="button" id="add-community-source-btn" class="action-button">+ Add Platform</button>
+        <button type="button" id="check-updates-btn" class="secondary-button">🔄 Check for Updates</button>
+      </div>
+      <div id="community-sources-list" class="sources-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 17: Model Version Control -->
+  <dialog id="version-control-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Version Control: <span id="version-model-name"></span></h3>
+      <input type="hidden" id="version-model-id">
+      <div class="form-group">
+        <button type="button" id="create-version-btn" class="action-button">+ New Version</button>
+        <button type="button" id="compare-versions-btn" class="secondary-button">⚖️ Compare</button>
+      </div>
+      <div id="versions-timeline" class="versions-timeline"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 18: Smart Recommendations -->
+  <dialog id="recommendations-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Smart Recommendations</h3>
+      <div class="recommendations-tabs">
+        <button type="button" class="tab-btn active" data-tab="similar">Similar Models</button>
+        <button type="button" class="tab-btn" data-tab="quick">Quick Wins</button>
+        <button type="button" class="tab-btn" data-tab="filament">Use This Filament</button>
+        <button type="button" class="tab-btn" data-tab="trending">Trending</button>
+      </div>
+      <div id="recommendations-content" class="recommendations-content"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
   <script>
     document.getElementById('dismiss-welcome')?.addEventListener('click', () => {
       const welcomeDialog = document.getElementById('welcome-message');

@@ -1942,3 +1942,720 @@ window.toggleModelSelection = toggleModelSelection;
 window.clearSelection = clearSelection;
 window.showCreateGroupFromSelection = showCreateGroupFromSelection;
 window.addSelectedToExistingGroup = addSelectedToExistingGroup;
+
+// ========================================================================
+// PRIORITY FEATURES JAVASCRIPT HANDLERS
+// ========================================================================
+
+// ========================================================================
+// FEATURE 12: Filament Inventory System
+// ========================================================================
+
+let allSpools = [];
+
+// Initialize filament inventory
+function initializeFilamentInventory() {
+  document.getElementById('add-spool-btn')?.addEventListener('click', showAddSpoolDialog);
+  document.getElementById('save-spool-btn')?.addEventListener('click', saveSpool);
+  document.getElementById('cancel-spool-btn')?.addEventListener('click', () => {
+    document.getElementById('add-spool-dialog').close();
+  });
+  document.getElementById('low-stock-alert-btn')?.addEventListener('click', showLowStockSpools);
+  document.getElementById('filament-stats-btn')?.addEventListener('click', showFilamentStats);
+
+  // Auto-populate remaining weight from total weight
+  document.getElementById('spool-weight-total')?.addEventListener('input', (e) => {
+    const remainingInput = document.getElementById('spool-weight-remaining');
+    if (!remainingInput.value) {
+      remainingInput.value = e.target.value;
+    }
+  });
+}
+
+// Show filament inventory
+async function showFilamentInventory() {
+  try {
+    allSpools = await window.electron.getFilamentSpools();
+    renderSpoolsGrid();
+    document.getElementById('filament-inventory-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading filament spools:', error);
+    alert('Failed to load filament inventory: ' + error.message);
+  }
+}
+
+// Render spools grid
+function renderSpoolsGrid() {
+  const grid = document.getElementById('spools-grid');
+  if (!grid) return;
+
+  if (allSpools.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No filament spools yet</div><div class="empty-state-subtext">Click "+ Add Spool" to add your first spool</div></div>';
+    return;
+  }
+
+  grid.innerHTML = allSpools.map(spool => {
+    const percentRemaining = (spool.weight_remaining / spool.weight_total) * 100;
+    const isLowStock = spool.weight_remaining < 100;
+
+    return `
+      <div class="spool-card ${isLowStock ? 'low-stock' : ''}" data-spool-id="${spool.id}">
+        <div class="spool-actions">
+          <button class="group-action-btn" onclick="editSpool(${spool.id})" title="Edit">✏️</button>
+          <button class="group-action-btn" onclick="deleteSpool(${spool.id})" title="Delete">🗑️</button>
+        </div>
+        <div class="spool-header">
+          <div>
+            <div class="spool-material">${escapeHtml(spool.material_type)}</div>
+            <div class="spool-brand">${escapeHtml(spool.brand)}</div>
+          </div>
+          <div class="spool-color-indicator" style="background-color: ${getColorCode(spool.color)};" title="${escapeHtml(spool.color)}"></div>
+        </div>
+        <div class="spool-weight-bar">
+          <div class="spool-weight-fill ${isLowStock ? 'low' : ''}" style="width: ${percentRemaining}%"></div>
+        </div>
+        <div class="spool-details">
+          <span>${spool.weight_remaining}g / ${spool.weight_total}g</span>
+          <span>${spool.cost ? '$' + spool.cost.toFixed(2) : 'N/A'}</span>
+        </div>
+        ${spool.location ? `<div class="spool-details" style="margin-top: 5px;"><span>📍 ${escapeHtml(spool.location)}</span></div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// Show add spool dialog
+function showAddSpoolDialog() {
+  document.getElementById('spool-dialog-title').textContent = 'Add Filament Spool';
+  document.getElementById('edit-spool-id').value = '';
+  document.getElementById('spool-brand').value = '';
+  document.getElementById('spool-material').value = '';
+  document.getElementById('spool-color').value = '';
+  document.getElementById('spool-diameter').value = '1.75';
+  document.getElementById('spool-weight-total').value = '';
+  document.getElementById('spool-weight-remaining').value = '';
+  document.getElementById('spool-cost').value = '';
+  document.getElementById('spool-purchase-date').value = '';
+  document.getElementById('spool-location').value = '';
+  document.getElementById('spool-barcode').value = '';
+  document.getElementById('spool-notes').value = '';
+
+  document.getElementById('add-spool-dialog').showModal();
+}
+
+// Save spool
+async function saveSpool(event) {
+  event.preventDefault();
+
+  const id = document.getElementById('edit-spool-id').value;
+  const spoolData = {
+    brand: document.getElementById('spool-brand').value.trim(),
+    material_type: document.getElementById('spool-material').value,
+    color: document.getElementById('spool-color').value.trim(),
+    filament_diameter: parseFloat(document.getElementById('spool-diameter').value),
+    weight_total: parseInt(document.getElementById('spool-weight-total').value),
+    weight_remaining: parseInt(document.getElementById('spool-weight-remaining').value),
+    cost: parseFloat(document.getElementById('spool-cost').value) || null,
+    purchase_date: document.getElementById('spool-purchase-date').value || null,
+    location: document.getElementById('spool-location').value.trim(),
+    barcode: document.getElementById('spool-barcode').value.trim(),
+    notes: document.getElementById('spool-notes').value.trim()
+  };
+
+  if (!spoolData.brand || !spoolData.material_type || !spoolData.color) {
+    alert('Please fill in all required fields');
+    return;
+  }
+
+  try {
+    if (id) {
+      spoolData.id = parseInt(id);
+      await window.electron.updateFilamentSpool(spoolData);
+    } else {
+      await window.electron.createFilamentSpool(spoolData);
+    }
+
+    document.getElementById('add-spool-dialog').close();
+    showFilamentInventory(); // Refresh
+    showNotification(`Spool ${id ? 'updated' : 'added'} successfully!`);
+  } catch (error) {
+    console.error('Error saving spool:', error);
+    alert('Failed to save spool: ' + error.message);
+  }
+}
+
+// Edit spool
+async function editSpool(spoolId) {
+  try {
+    const spool = await window.electron.getFilamentSpool(spoolId);
+    if (!spool) return;
+
+    document.getElementById('spool-dialog-title').textContent = 'Edit Filament Spool';
+    document.getElementById('edit-spool-id').value = spool.id;
+    document.getElementById('spool-brand').value = spool.brand;
+    document.getElementById('spool-material').value = spool.material_type;
+    document.getElementById('spool-color').value = spool.color;
+    document.getElementById('spool-diameter').value = spool.filament_diameter || 1.75;
+    document.getElementById('spool-weight-total').value = spool.weight_total;
+    document.getElementById('spool-weight-remaining').value = spool.weight_remaining;
+    document.getElementById('spool-cost').value = spool.cost || '';
+    document.getElementById('spool-purchase-date').value = spool.purchase_date || '';
+    document.getElementById('spool-location').value = spool.location || '';
+    document.getElementById('spool-barcode').value = spool.barcode || '';
+    document.getElementById('spool-notes').value = spool.notes || '';
+
+    document.getElementById('add-spool-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading spool:', error);
+    alert('Failed to load spool: ' + error.message);
+  }
+}
+
+// Delete spool
+async function deleteSpool(spoolId) {
+  const spool = allSpools.find(s => s.id === spoolId);
+  if (!spool) return;
+
+  if (!confirm(`Delete ${spool.brand} ${spool.color} ${spool.material_type} spool?`)) {
+    return;
+  }
+
+  try {
+    await window.electron.deleteFilamentSpool(spoolId);
+    showFilamentInventory(); // Refresh
+    showNotification('Spool deleted successfully!');
+  } catch (error) {
+    console.error('Error deleting spool:', error);
+    alert('Failed to delete spool: ' + error.message);
+  }
+}
+
+// Show low stock spools
+async function showLowStockSpools() {
+  try {
+    const lowStock = await window.electron.getLowStockSpools(100);
+    if (lowStock.length === 0) {
+      alert('No low stock spools! All spools have sufficient filament.');
+      return;
+    }
+
+    const message = `Low Stock Spools (< 100g):\n\n` +
+      lowStock.map(s => `• ${s.brand} ${s.color} ${s.material_type}: ${s.weight_remaining}g`).join('\n');
+
+    alert(message);
+  } catch (error) {
+    console.error('Error loading low stock spools:', error);
+    alert('Failed to load low stock spools: ' + error.message);
+  }
+}
+
+// Show filament statistics
+async function showFilamentStats() {
+  try {
+    const stats = await window.electron.getFilamentStatistics();
+
+    const content = `
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">${stats.totalSpools}</div>
+          <div class="stat-label">Total Spools</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${(stats.totalWeight / 1000).toFixed(1)}kg</div>
+          <div class="stat-label">Total Weight</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">$${stats.totalValue.toFixed(2)}</div>
+          <div class="stat-label">Total Value</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${stats.lowStock}</div>
+          <div class="stat-label">Low Stock</div>
+        </div>
+      </div>
+      <h4>By Material</h4>
+      <div class="stats-content">
+        ${stats.byMaterial.map(m => `
+          <div class="stat-card">
+            <div class="stat-value">${m.count}</div>
+            <div class="stat-label">${m.material_type} (${(m.weight / 1000).toFixed(1)}kg)</div>
+          </div>
+        `).join('')}
+      </div>
+      <h4>Top Colors</h4>
+      <div class="stats-content">
+        ${stats.byColor.slice(0, 5).map(c => `
+          <div class="stat-card">
+            <div class="stat-value">${c.count}</div>
+            <div class="stat-label">${c.color}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    document.getElementById('filament-stats-content').innerHTML = content;
+    document.getElementById('filament-stats-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading filament statistics:', error);
+    alert('Failed to load statistics: ' + error.message);
+  }
+}
+
+// Helper: Get color code from color name
+function getColorCode(colorName) {
+  const colorMap = {
+    'red': '#FF0000',
+    'blue': '#0000FF',
+    'green': '#00FF00',
+    'yellow': '#FFFF00',
+    'black': '#000000',
+    'white': '#FFFFFF',
+    'gray': '#808080',
+    'grey': '#808080',
+    'orange': '#FFA500',
+    'purple': '#800080',
+    'pink': '#FFC0CB',
+    'brown': '#A52A2A',
+    'silver': '#C0C0C0',
+    'gold': '#FFD700'
+  };
+
+  const lowerName = colorName.toLowerCase();
+  return colorMap[lowerName] || '#888888';
+}
+
+// ========================================================================
+// Remaining Priority Features - Simplified Core Handlers
+// ========================================================================
+
+// Initialize all priority features on load
+function initializePriorityFeatures() {
+  initializeFilamentInventory();
+  initializeCostTracking();
+  initializeSlicerProfiles();
+  initializePrintScheduling();
+  initializeCommunitySources();
+  initializeVersionControl();
+  initializeRecommendations();
+}
+
+// ========================================================================
+// FEATURE 13: Cost Tracking
+// ========================================================================
+
+function initializeCostTracking() {
+  document.getElementById('cost-settings-btn')?.addEventListener('click', showCostSettings);
+  document.getElementById('cost-timerange')?.addEventListener('change', refreshCostStats);
+  document.getElementById('save-cost-settings-btn')?.addEventListener('click', saveCostSettings);
+  document.getElementById('cancel-cost-settings-btn')?.addEventListener('click', () => {
+    document.getElementById('cost-settings-dialog').close();
+  });
+}
+
+async function showCostTracking() {
+  await refreshCostStats();
+  document.getElementById('cost-tracking-dialog').showModal();
+}
+
+async function refreshCostStats() {
+  try {
+    const timeRange = document.getElementById('cost-timerange')?.value || 'month';
+    const stats = await window.electron.getCostStatistics(timeRange);
+
+    const content = `
+      <div class="stat-card">
+        <div class="stat-value">$${stats.totalCost.toFixed(2)}</div>
+        <div class="stat-label">Total Cost</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">$${stats.filamentCost.toFixed(2)}</div>
+        <div class="stat-label">Filament</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">$${stats.electricityCost.toFixed(2)}</div>
+        <div class="stat-label">Electricity</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">$${stats.avgCostPerPrint.toFixed(2)}</div>
+        <div class="stat-label">Avg Per Print</div>
+      </div>
+    `;
+
+    document.getElementById('cost-stats-grid').innerHTML = content;
+  } catch (error) {
+    console.error('Error loading cost statistics:', error);
+  }
+}
+
+async function showCostSettings() {
+  try {
+    const settings = await window.electron.getCostSettings();
+    document.getElementById('electricity-rate').value = settings.electricity_rate || 0.12;
+    document.getElementById('currency-select').value = settings.currency || 'USD';
+    document.getElementById('printer-wattage').value = settings.printer_wattage || 200;
+    document.getElementById('cost-settings-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading cost settings:', error);
+  }
+}
+
+async function saveCostSettings(event) {
+  event.preventDefault();
+  try {
+    await window.electron.updateCostSettings({
+      electricity_rate: parseFloat(document.getElementById('electricity-rate').value),
+      currency: document.getElementById('currency-select').value,
+      printer_wattage: parseInt(document.getElementById('printer-wattage').value)
+    });
+    document.getElementById('cost-settings-dialog').close();
+    showNotification('Cost settings saved!');
+  } catch (error) {
+    console.error('Error saving cost settings:', error);
+    alert('Failed to save settings: ' + error.message);
+  }
+}
+
+// ========================================================================
+// FEATURE 14: Slicer Profiles
+// ========================================================================
+
+function initializeSlicerProfiles() {
+  document.getElementById('add-slicer-profile-btn')?.addEventListener('click', showAddProfileDialog);
+  document.getElementById('save-profile-btn')?.addEventListener('click', saveSlicerProfile);
+  document.getElementById('cancel-profile-btn')?.addEventListener('click', () => {
+    document.getElementById('add-slicer-profile-dialog').close();
+  });
+}
+
+async function showSlicerProfiles() {
+  try {
+    const profiles = await window.electron.getSlicerProfiles();
+    renderProfilesList(profiles);
+    document.getElementById('slicer-profiles-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading slicer profiles:', error);
+  }
+}
+
+function renderProfilesList(profiles) {
+  const list = document.getElementById('slicer-profiles-list');
+  if (!profiles || profiles.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-state-text">No slicer profiles yet</div></div>';
+    return;
+  }
+
+  list.innerHTML = profiles.map(p => `
+    <div class="profile-item">
+      <div class="profile-info">
+        <h4>${escapeHtml(p.name)}</h4>
+        <div class="profile-details">
+          <span class="profile-badge">${p.quality || 'N/A'}</span>
+          <span class="profile-badge">${p.material_type || 'N/A'}</span>
+          ${p.layer_height ? `<span class="profile-badge">${p.layer_height}mm</span>` : ''}
+          ${p.infill_percentage ? `<span class="profile-badge">${p.infill_percentage}% infill</span>` : ''}
+        </div>
+      </div>
+      <div class="profile-actions">
+        <button class="secondary-button" onclick="deleteSlicerProfile(${p.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showAddProfileDialog() {
+  document.getElementById('profile-dialog-title').textContent = 'Add Slicer Profile';
+  document.getElementById('edit-profile-id').value = '';
+  document.getElementById('profile-name').value = '';
+  document.getElementById('add-slicer-profile-dialog').showModal();
+}
+
+async function saveSlicerProfile(event) {
+  event.preventDefault();
+  try {
+    const data = {
+      name: document.getElementById('profile-name').value.trim(),
+      quality: document.getElementById('profile-quality').value,
+      material_type: document.getElementById('profile-material').value,
+      layer_height: parseFloat(document.getElementById('profile-layer-height').value) || null,
+      infill_percentage: parseInt(document.getElementById('profile-infill').value) || null,
+      supports: document.getElementById('profile-supports').checked,
+      notes: document.getElementById('profile-notes').value.trim()
+    };
+
+    await window.electron.createSlicerProfile(data);
+    document.getElementById('add-slicer-profile-dialog').close();
+    showSlicerProfiles();
+    showNotification('Profile created!');
+  } catch (error) {
+    console.error('Error saving profile:', error);
+    alert('Failed to save profile: ' + error.message);
+  }
+}
+
+async function deleteSlicerProfile(id) {
+  if (!confirm('Delete this profile?')) return;
+  try {
+    await window.electron.deleteSlicerProfile(id);
+    showSlicerProfiles();
+  } catch (error) {
+    console.error('Error deleting profile:', error);
+  }
+}
+
+// ========================================================================
+// FEATURE 15: Print Scheduling
+// ========================================================================
+
+function initializePrintScheduling() {
+  document.getElementById('schedule-print-btn')?.addEventListener('click', showSchedulePrintDialog);
+  document.getElementById('view-projects-btn')?.addEventListener('click', showPrintProjects);
+  document.getElementById('save-schedule-btn')?.addEventListener('click', saveScheduledPrint);
+  document.getElementById('cancel-schedule-btn')?.addEventListener('click', () => {
+    document.getElementById('schedule-print-dialog').close();
+  });
+  document.getElementById('create-project-btn')?.addEventListener('click', showCreateProjectDialog);
+  document.getElementById('save-project-btn')?.addEventListener('click', savePrintProject);
+  document.getElementById('cancel-project-btn')?.addEventListener('click', () => {
+    document.getElementById('create-project-dialog').close();
+  });
+}
+
+async function showPrintCalendar() {
+  try {
+    const scheduled = await window.electron.getScheduledPrints({ status: 'pending' });
+    renderScheduledList(scheduled);
+    document.getElementById('print-calendar-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading print calendar:', error);
+  }
+}
+
+function renderScheduledList(scheduled) {
+  const list = document.getElementById('scheduled-prints-list');
+  if (!scheduled || scheduled.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-state-text">No scheduled prints</div></div>';
+    return;
+  }
+
+  list.innerHTML = scheduled.map(s => `
+    <div class="scheduled-item priority-${s.priority}">
+      <div>
+        <div class="scheduled-date">${formatDate(s.scheduled_date)}</div>
+        <div class="scheduled-model-name">${escapeHtml(s.fileName)}</div>
+        ${s.deadline ? `<div class="scheduled-deadline">Due: ${formatDate(s.deadline)}</div>` : ''}
+      </div>
+      <button class="secondary-button" onclick="completeScheduledPrint(${s.id})">Complete</button>
+    </div>
+  `).join('');
+}
+
+function showSchedulePrintDialog() {
+  document.getElementById('schedule-print-dialog').showModal();
+}
+
+async function saveScheduledPrint(event) {
+  event.preventDefault();
+  try {
+    const data = {
+      model_id: parseInt(document.getElementById('schedule-model').value),
+      scheduled_date: document.getElementById('schedule-date').value,
+      deadline: document.getElementById('schedule-deadline').value || null,
+      priority: document.getElementById('schedule-priority').value,
+      notes: document.getElementById('schedule-notes').value.trim()
+    };
+
+    await window.electron.createScheduledPrint(data);
+    document.getElementById('schedule-print-dialog').close();
+    showPrintCalendar();
+    showNotification('Print scheduled!');
+  } catch (error) {
+    console.error('Error scheduling print:', error);
+    alert('Failed to schedule print: ' + error.message);
+  }
+}
+
+async function completeScheduledPrint(id) {
+  try {
+    await window.electron.completeScheduledPrint(id);
+    showPrintCalendar();
+    showNotification('Print marked as completed!');
+  } catch (error) {
+    console.error('Error completing scheduled print:', error);
+  }
+}
+
+async function showPrintProjects() {
+  try {
+    const projects = await window.electron.getPrintProjects();
+    renderProjectsList(projects);
+    document.getElementById('print-projects-dialog').showModal();
+  } catch (error) {
+    console.error('Error loading projects:', error);
+  }
+}
+
+function renderProjectsList(projects) {
+  const list = document.getElementById('projects-list');
+  if (!projects || projects.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-state-text">No projects yet</div></div>';
+    return;
+  }
+
+  list.innerHTML = projects.map(p => {
+    const progress = p.total_parts > 0 ? (p.printed_parts / p.total_parts * 100) : 0;
+    return `
+      <div class="project-card">
+        <div class="project-header">
+          <div>
+            <h3 class="project-name">${escapeHtml(p.name)}</h3>
+            <span class="project-status-badge ${p.status}">${p.status}</span>
+          </div>
+        </div>
+        ${p.description ? `<div class="project-description">${escapeHtml(p.description)}</div>` : ''}
+        <div class="project-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${progress}%">${Math.round(progress)}%</div>
+          </div>
+        </div>
+        <div class="project-stats">
+          <span>${p.printed_parts}/${p.total_parts} parts printed</span>
+          ${p.deadline ? `<span>Due: ${formatDate(p.deadline)}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function showCreateProjectDialog() {
+  document.getElementById('project-dialog-title').textContent = 'Create Project';
+  document.getElementById('edit-project-id').value = '';
+  document.getElementById('project-name').value = '';
+  document.getElementById('project-description').value = '';
+  document.getElementById('project-deadline').value = '';
+  document.getElementById('project-status').value = 'active';
+  document.getElementById('create-project-dialog').showModal();
+}
+
+async function savePrintProject(event) {
+  event.preventDefault();
+  try {
+    const data = {
+      name: document.getElementById('project-name').value.trim(),
+      description: document.getElementById('project-description').value.trim(),
+      deadline: document.getElementById('project-deadline').value || null,
+      status: document.getElementById('project-status').value
+    };
+
+    await window.electron.createPrintProject(data);
+    document.getElementById('create-project-dialog').close();
+    showPrintProjects();
+    showNotification('Project created!');
+  } catch (error) {
+    console.error('Error creating project:', error);
+    alert('Failed to create project: ' + error.message);
+  }
+}
+
+// ========================================================================
+// FEATURE 16-18: Simplified Handlers
+// ========================================================================
+
+function initializeCommunitySources() {
+  // Placeholder for community integration
+}
+
+function initializeVersionControl() {
+  // Placeholder for version control
+}
+
+function initializeRecommendations() {
+  // Initialize recommendations tabs
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      loadRecommendations(e.target.dataset.tab);
+    });
+  });
+}
+
+async function showRecommendations(modelId) {
+  document.getElementById('recommendations-dialog').showModal();
+  await loadRecommendations('similar', modelId);
+}
+
+async function loadRecommendations(type, modelId) {
+  const content = document.getElementById('recommendations-content');
+  content.innerHTML = '<div class="loading-spinner"></div>';
+
+  try {
+    let recommendations = [];
+    switch (type) {
+      case 'similar':
+        if (modelId) {
+          recommendations = await window.electron.getModelRecommendations(modelId, 20);
+        }
+        break;
+      case 'quick':
+        recommendations = await window.electron.getQuickWins(7200); // 2 hours
+        break;
+      case 'trending':
+        recommendations = await window.electron.getTrendingModels(30, 20);
+        break;
+    }
+
+    if (!recommendations || recommendations.length === 0) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-state-text">No recommendations available</div></div>';
+      return;
+    }
+
+    content.innerHTML = '<div class="recommendation-grid">' +
+      recommendations.map(m => `
+        <div class="recommendation-card" onclick="viewModelDetails(${m.id})">
+          <img src="${m.thumbnail || '3d.png'}" class="recommendation-thumbnail" alt="${escapeHtml(m.fileName)}">
+          <div class="recommendation-info">
+            <div class="recommendation-name">${escapeHtml(m.fileName)}</div>
+            ${m.designer ? `<div class="recommendation-reason">by ${escapeHtml(m.designer)}</div>` : ''}
+          </div>
+        </div>
+      `).join('') +
+      '</div>';
+  } catch (error) {
+    console.error('Error loading recommendations:', error);
+    content.innerHTML = '<div class="empty-state"><div class="empty-state-text">Failed to load recommendations</div></div>';
+  }
+}
+
+// Helper: Format date
+function formatDate(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString();
+}
+
+// Initialize on load
+if (typeof initializeGroupFeatures !== 'undefined') {
+  const originalInit = initializeGroupFeatures;
+  initializeGroupFeatures = function() {
+    originalInit();
+    initializePriorityFeatures();
+  };
+} else {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePriorityFeatures);
+  } else {
+    initializePriorityFeatures();
+  }
+}
+
+// Make functions globally available
+window.showFilamentInventory = showFilamentInventory;
+window.editSpool = editSpool;
+window.deleteSpool = deleteSpool;
+window.showCostTracking = showCostTracking;
+window.showSlicerProfiles = showSlicerProfiles;
+window.deleteSlicerProfile = deleteSlicerProfile;
+window.showPrintCalendar = showPrintCalendar;
+window.completeScheduledPrint = completeScheduledPrint;
+window.showPrintProjects = showPrintProjects;
+window.showRecommendations = showRecommendations;
