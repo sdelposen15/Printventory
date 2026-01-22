@@ -275,6 +275,87 @@ contextBridge.exposeInMainWorld('electron', {
   getTagHierarchy: (tagId) => ipcRenderer.invoke('get-tag-hierarchy', tagId),
   onOpenGroupManager: (callback) => ipcRenderer.on('open-group-manager', callback),
   onCreateGroupFromSelection: (callback) => ipcRenderer.on('create-group-from-selection', callback)
+,
+
+  // ========================================================================
+  // FEATURE 12: Filament Inventory System
+  // ========================================================================
+  getFilamentSpools: () => ipcRenderer.invoke('get-filament-spools'),
+  getFilamentSpool: (id) => ipcRenderer.invoke('get-filament-spool', id),
+  createFilamentSpool: (data) => ipcRenderer.invoke('create-filament-spool', data),
+  updateFilamentSpool: (data) => ipcRenderer.invoke('update-filament-spool', data),
+  deleteFilamentSpool: (id) => ipcRenderer.invoke('delete-filament-spool', id),
+  recordFilamentUsage: (data) => ipcRenderer.invoke('record-filament-usage', data),
+  getLowStockSpools: (threshold) => ipcRenderer.invoke('get-low-stock-spools', threshold),
+  getFilamentStatistics: () => ipcRenderer.invoke('get-filament-statistics'),
+
+  // ========================================================================
+  // FEATURE 13: Enhanced Cost Tracking
+  // ========================================================================
+  getCostSettings: () => ipcRenderer.invoke('get-cost-settings'),
+  updateCostSettings: (data) => ipcRenderer.invoke('update-cost-settings', data),
+  calculatePrintCost: (printData) => ipcRenderer.invoke('calculate-print-cost', printData),
+  savePrintCost: (data) => ipcRenderer.invoke('save-print-cost', data),
+  getCostStatistics: (timeRange) => ipcRenderer.invoke('get-cost-statistics', timeRange),
+
+  // ========================================================================
+  // FEATURE 14: Enhanced Slicer Integration
+  // ========================================================================
+  getSlicerProfiles: (slicerId) => ipcRenderer.invoke('get-slicer-profiles', slicerId),
+  createSlicerProfile: (data) => ipcRenderer.invoke('create-slicer-profile', data),
+  updateSlicerProfile: (data) => ipcRenderer.invoke('update-slicer-profile', data),
+  deleteSlicerProfile: (id) => ipcRenderer.invoke('delete-slicer-profile', id),
+  getModelSlicerSettings: (modelId) => ipcRenderer.invoke('get-model-slicer-settings', modelId),
+  saveModelSlicerSettings: (data) => ipcRenderer.invoke('save-model-slicer-settings', data),
+
+  // ========================================================================
+  // FEATURE 15: Print Scheduling & Calendar
+  // ========================================================================
+  getScheduledPrints: (filters) => ipcRenderer.invoke('get-scheduled-prints', filters),
+  createScheduledPrint: (data) => ipcRenderer.invoke('create-scheduled-print', data),
+  updateScheduledPrint: (data) => ipcRenderer.invoke('update-scheduled-print', data),
+  completeScheduledPrint: (id) => ipcRenderer.invoke('complete-scheduled-print', id),
+  deleteScheduledPrint: (id) => ipcRenderer.invoke('delete-scheduled-print', id),
+  getPrintProjects: () => ipcRenderer.invoke('get-print-projects'),
+  getPrintProject: (id) => ipcRenderer.invoke('get-print-project', id),
+  createPrintProject: (data) => ipcRenderer.invoke('create-print-project', data),
+  updatePrintProject: (data) => ipcRenderer.invoke('update-print-project', data),
+  deletePrintProject: (id) => ipcRenderer.invoke('delete-print-project', id),
+  addModelToProject: (data) => ipcRenderer.invoke('add-model-to-project', data),
+  updateProjectModel: (data) => ipcRenderer.invoke('update-project-model', data),
+  removeModelFromProject: (id) => ipcRenderer.invoke('remove-model-from-project', id),
+
+  // ========================================================================
+  // FEATURE 16: Community Platform Integration
+  // ========================================================================
+  getCommunitySources: () => ipcRenderer.invoke('get-community-sources'),
+  addCommunitySource: (data) => ipcRenderer.invoke('add-community-source', data),
+  updateCommunitySource: (data) => ipcRenderer.invoke('update-community-source', data),
+  deleteCommunitySource: (id) => ipcRenderer.invoke('delete-community-source', id),
+  linkModelToSource: (data) => ipcRenderer.invoke('link-model-to-source', data),
+  getModelSource: (modelId) => ipcRenderer.invoke('get-model-source', modelId),
+  checkModelUpdates: (modelId) => ipcRenderer.invoke('check-model-updates', modelId),
+  getModelsWithUpdates: () => ipcRenderer.invoke('get-models-with-updates'),
+
+  // ========================================================================
+  // FEATURE 17: Model Version Control
+  // ========================================================================
+  getModelVersions: (modelId) => ipcRenderer.invoke('get-model-versions', modelId),
+  createModelVersion: (data) => ipcRenderer.invoke('create-model-version', data),
+  setCurrentVersion: (versionId) => ipcRenderer.invoke('set-current-version', versionId),
+  deleteModelVersion: (versionId) => ipcRenderer.invoke('delete-model-version', versionId),
+  compareModelVersions: (version1Id, version2Id) => ipcRenderer.invoke('compare-model-versions', version1Id, version2Id),
+
+  // ========================================================================
+  // FEATURE 18: Smart Recommendations
+  // ========================================================================
+  getModelRecommendations: (modelId, limit) => ipcRenderer.invoke('get-model-recommendations', modelId, limit),
+  recordModelAssociation: (modelAId, modelBId, type) => ipcRenderer.invoke('record-model-association', modelAId, modelBId, type),
+  getQuickWins: (maxTime) => ipcRenderer.invoke('get-quick-wins', maxTime),
+  getFilamentBasedRecommendations: (spoolId) => ipcRenderer.invoke('get-filament-based-recommendations', spoolId),
+  getUserPreference: (key) => ipcRenderer.invoke('get-user-preference', key),
+  setUserPreference: (key, value) => ipcRenderer.invoke('set-user-preference', key, value),
+  getTrendingModels: (days, limit) => ipcRenderer.invoke('get-trending-models', days, limit)
 });
 
 contextBridge.exposeInMainWorld('electronAPI', {
