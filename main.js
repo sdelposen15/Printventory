@@ -1176,7 +1176,110 @@ function initializeDatabase() {
           name TEXT NOT NULL,
           path TEXT NOT NULL
       )`).run();
-      
+
+      // FEATURE 1: Smart Collections table
+      db.prepare(`CREATE TABLE IF NOT EXISTS smart_collections (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          description TEXT,
+          rules TEXT NOT NULL,
+          icon TEXT,
+          color TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
+      // FEATURE 2: File watcher tracked directories
+      db.prepare(`CREATE TABLE IF NOT EXISTS watched_directories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          path TEXT NOT NULL UNIQUE,
+          enabled INTEGER DEFAULT 1,
+          last_scan DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
+      // FEATURE 3: Print Queue table
+      db.prepare(`CREATE TABLE IF NOT EXISTS print_queue (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          position INTEGER NOT NULL,
+          priority TEXT DEFAULT 'normal',
+          notes TEXT,
+          estimated_time INTEGER,
+          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 3: Print History table
+      db.prepare(`CREATE TABLE IF NOT EXISTS print_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          print_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          duration INTEGER,
+          material_used REAL,
+          success INTEGER DEFAULT 1,
+          notes TEXT,
+          rating INTEGER,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 4: Recent models (history tracking)
+      db.prepare(`CREATE TABLE IF NOT EXISTS recent_models (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 5: Favorites/Bookmarks table
+      db.prepare(`CREATE TABLE IF NOT EXISTS favorites (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL UNIQUE,
+          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          notes TEXT,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 6: Custom metadata fields definition
+      db.prepare(`CREATE TABLE IF NOT EXISTS custom_fields (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          type TEXT NOT NULL,
+          default_value TEXT,
+          options TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
+      // FEATURE 6: Custom metadata field values
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_custom_fields (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          field_id INTEGER NOT NULL,
+          value TEXT,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,
+          FOREIGN KEY(field_id) REFERENCES custom_fields(id) ON DELETE CASCADE,
+          UNIQUE(model_id, field_id)
+      )`).run();
+
+      // FEATURE 10: Saved searches table
+      db.prepare(`CREATE TABLE IF NOT EXISTS saved_searches (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          filters TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_used DATETIME
+      )`).run();
+
+      // FEATURE 9: Collection export/import metadata
+      db.prepare(`CREATE TABLE IF NOT EXISTS collection_exports (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          model_count INTEGER,
+          export_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          file_path TEXT
+      )`).run();
+
       // Create indexes for better performance
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_filepath ON models(filePath)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_filename ON models(fileName)').run();
@@ -1199,26 +1302,45 @@ function initializeDatabase() {
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_license_modifieddate ON models(license, modifiedDate)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_printed_modifieddate ON models(printed, modifiedDate)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_parentmodel_modifieddate ON models(parentModel, modifiedDate)').run();
+
+      // Indexes for new feature tables
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_queue_position ON print_queue(position)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_queue_model_id ON print_queue(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_history_model_id ON print_history(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_history_date ON print_history(print_date)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_recent_models_model_id ON recent_models(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_recent_models_accessed ON recent_models(accessed_at)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_favorites_model_id ON favorites(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_custom_fields_model ON model_custom_fields(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_custom_fields_field ON model_custom_fields(field_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_saved_searches_name ON saved_searches(name)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_watched_directories_path ON watched_directories(path)').run();
     })();
     
     // Migrate existing database: add dateAdded column if it doesn't exist
     // This must run before creating indexes on dateAdded
     migrateDateAddedColumn();
-    
+
     // Create index for dateAdded after migration (in case it was just added)
     db.prepare('CREATE INDEX IF NOT EXISTS idx_models_dateadded ON models(dateAdded)').run();
-    
+
     // Clean up any database objects that reference models_old (from old migrations)
     cleanupModelsOldReferences();
-    
+
     // Repair model_tags table to fix any foreign key issues
     repairModelTagsTable();
-    
+
     // Check and create slicers table if it doesn't exist
     ensureSlicersTableExists();
-    
+
+    // Migrate new feature columns
+    migrateEnhancedFeatureColumns();
+
     // Initialize default settings
     initializeDefaultSettings();
+
+    // Initialize file watcher
+    initializeFileWatcher();
     
     return true;
   } catch (err) {
@@ -1519,11 +1641,60 @@ function createWindow() {
       ]
     },
     {
-      label: 'Tools',
+      label: 'Collections',
       submenu: [
+        {
+          label: 'Smart Collections',
+          click: () => mainWindow.webContents.send('open-smart-collections')
+        },
+        {
+          label: 'Favorites',
+          click: () => mainWindow.webContents.send('open-favorites')
+        },
+        {
+          label: 'Recent Models',
+          click: () => mainWindow.webContents.send('open-recent-models')
+        },
+        { type: 'separator' },
+        {
+          label: 'Saved Searches',
+          click: () => mainWindow.webContents.send('open-saved-searches')
+        },
+        { type: 'separator' },
+        {
+          label: 'Export Collection',
+          click: () => mainWindow.webContents.send('open-collection-export')
+        },
+        {
+          label: 'Import Collection',
+          click: () => mainWindow.webContents.send('open-collection-import')
+        }
+      ]
+    },
+    {
+      label: 'Print',
+      submenu: [
+        {
+          label: 'Print Queue',
+          click: () => mainWindow.webContents.send('open-print-queue')
+        },
+        {
+          label: 'Print History',
+          click: () => mainWindow.webContents.send('open-print-history')
+        },
+        { type: 'separator' },
         {
           label: 'Print Roulette',
           click: () => mainWindow.webContents.send('start-print-roulette')
+        }
+      ]
+    },
+    {
+      label: 'Tools',
+      submenu: [
+        {
+          label: 'Bulk Rename',
+          click: () => mainWindow.webContents.send('open-bulk-rename')
         },
         {
           label: 'De-Dup',
@@ -1540,6 +1711,16 @@ function createWindow() {
           label: 'Metadata Manager',
           click: () => mainWindow.webContents.send('open-metadata-editor')
         },
+        {
+          label: 'Custom Fields',
+          click: () => mainWindow.webContents.send('open-custom-fields')
+        },
+        { type: 'separator' },
+        {
+          label: 'File Watcher',
+          click: () => mainWindow.webContents.send('open-file-watcher')
+        },
+        { type: 'separator' },
         {
           label: 'Backup/Restore',
           click: () => mainWindow.webContents.send('open-backup-restore')
@@ -1572,6 +1753,12 @@ function createWindow() {
           label: 'Library Stats',
           click: () => {
             mainWindow.webContents.send('open-stats');
+          }
+        },
+        {
+          label: 'Statistics Dashboard',
+          click: () => {
+            mainWindow.webContents.send('open-statistics');
           }
         },
         {
@@ -1699,11 +1886,60 @@ function createApplicationMenu() {
       ]
     },
     {
-      label: 'Tools',
+      label: 'Collections',
       submenu: [
+        {
+          label: 'Smart Collections',
+          click: () => mainWindow.webContents.send('open-smart-collections')
+        },
+        {
+          label: 'Favorites',
+          click: () => mainWindow.webContents.send('open-favorites')
+        },
+        {
+          label: 'Recent Models',
+          click: () => mainWindow.webContents.send('open-recent-models')
+        },
+        { type: 'separator' },
+        {
+          label: 'Saved Searches',
+          click: () => mainWindow.webContents.send('open-saved-searches')
+        },
+        { type: 'separator' },
+        {
+          label: 'Export Collection',
+          click: () => mainWindow.webContents.send('open-collection-export')
+        },
+        {
+          label: 'Import Collection',
+          click: () => mainWindow.webContents.send('open-collection-import')
+        }
+      ]
+    },
+    {
+      label: 'Print',
+      submenu: [
+        {
+          label: 'Print Queue',
+          click: () => mainWindow.webContents.send('open-print-queue')
+        },
+        {
+          label: 'Print History',
+          click: () => mainWindow.webContents.send('open-print-history')
+        },
+        { type: 'separator' },
         {
           label: 'Print Roulette',
           click: () => mainWindow.webContents.send('start-print-roulette')
+        }
+      ]
+    },
+    {
+      label: 'Tools',
+      submenu: [
+        {
+          label: 'Bulk Rename',
+          click: () => mainWindow.webContents.send('open-bulk-rename')
         },
         {
           label: 'De-Dup',
@@ -1720,6 +1956,16 @@ function createApplicationMenu() {
           label: 'Metadata Manager',
           click: () => mainWindow.webContents.send('open-metadata-editor')
         },
+        {
+          label: 'Custom Fields',
+          click: () => mainWindow.webContents.send('open-custom-fields')
+        },
+        { type: 'separator' },
+        {
+          label: 'File Watcher',
+          click: () => mainWindow.webContents.send('open-file-watcher')
+        },
+        { type: 'separator' },
         {
           label: 'Backup/Restore',
           click: () => mainWindow.webContents.send('open-backup-restore')
@@ -1752,6 +1998,12 @@ function createApplicationMenu() {
           label: 'Library Stats',
           click: () => {
             mainWindow.webContents.send('open-stats');
+          }
+        },
+        {
+          label: 'Statistics Dashboard',
+          click: () => {
+            mainWindow.webContents.send('open-statistics');
           }
         },
         {
@@ -6927,6 +7179,131 @@ function ensureSlicersTableExists() {
   }
 }
 
+// NEW FEATURES: Migration function for enhanced feature columns
+function migrateEnhancedFeatureColumns() {
+  try {
+    console.log('Migrating enhanced feature columns...');
+
+    // Check if rating column exists
+    const tableInfo = db.prepare("PRAGMA table_info(models)").all();
+    const hasRating = tableInfo.some(col => col.name === 'rating');
+    const hasPrintTime = tableInfo.some(col => col.name === 'printTime');
+    const hasLastAccessed = tableInfo.some(col => col.name === 'lastAccessed');
+
+    if (!hasRating) {
+      console.log('Adding rating column to models table...');
+      db.prepare('ALTER TABLE models ADD COLUMN rating INTEGER DEFAULT 0').run();
+    }
+
+    if (!hasPrintTime) {
+      console.log('Adding printTime column to models table...');
+      db.prepare('ALTER TABLE models ADD COLUMN printTime INTEGER').run();
+    }
+
+    if (!hasLastAccessed) {
+      console.log('Adding lastAccessed column to models table...');
+      db.prepare('ALTER TABLE models ADD COLUMN lastAccessed DATETIME').run();
+    }
+
+    // Create indexes for new columns
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_models_rating ON models(rating)').run();
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_models_last_accessed ON models(lastAccessed)').run();
+
+    console.log('Enhanced feature columns migrated successfully');
+    return true;
+  } catch (error) {
+    console.error('Error migrating enhanced feature columns:', error);
+    return false;
+  }
+}
+
+// FEATURE 2: File Watcher variables
+let fileWatcher = null;
+let watchedDirectories = new Map();
+
+// FEATURE 2: Initialize file watcher
+function initializeFileWatcher() {
+  try {
+    console.log('Initializing file watcher...');
+
+    // Get all enabled watched directories from database
+    const directories = db.prepare('SELECT * FROM watched_directories WHERE enabled = 1').all();
+
+    if (directories.length > 0) {
+      console.log(`Found ${directories.length} watched directories`);
+      // Start watching each directory
+      directories.forEach(dir => {
+        startWatchingDirectory(dir.path, dir.id);
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error initializing file watcher:', error);
+    return false;
+  }
+}
+
+// FEATURE 2: Start watching a directory
+function startWatchingDirectory(dirPath, dirId) {
+  try {
+    if (watchedDirectories.has(dirPath)) {
+      console.log(`Already watching directory: ${dirPath}`);
+      return;
+    }
+
+    // Use fs.watch for directory monitoring
+    const watcher = fs.watch(dirPath, { recursive: true }, (eventType, filename) => {
+      if (filename && (filename.endsWith('.stl') || filename.endsWith('.3mf'))) {
+        console.log(`File watcher detected change: ${eventType} - ${filename}`);
+
+        // Debounce the scan to avoid multiple rapid scans
+        clearTimeout(watchedDirectories.get(dirPath).timeout);
+        watchedDirectories.get(dirPath).timeout = setTimeout(() => {
+          console.log(`Scanning directory ${dirPath} due to file change...`);
+          scanDirectoryFromWatcher(dirPath, dirId);
+        }, 5000); // Wait 5 seconds after last change before scanning
+      }
+    });
+
+    watchedDirectories.set(dirPath, { watcher, timeout: null, dirId });
+    console.log(`Started watching directory: ${dirPath}`);
+  } catch (error) {
+    console.error(`Error watching directory ${dirPath}:`, error);
+  }
+}
+
+// FEATURE 2: Stop watching a directory
+function stopWatchingDirectory(dirPath) {
+  try {
+    if (watchedDirectories.has(dirPath)) {
+      const { watcher, timeout } = watchedDirectories.get(dirPath);
+      if (timeout) clearTimeout(timeout);
+      if (watcher) watcher.close();
+      watchedDirectories.delete(dirPath);
+      console.log(`Stopped watching directory: ${dirPath}`);
+    }
+  } catch (error) {
+    console.error(`Error stopping watch on directory ${dirPath}:`, error);
+  }
+}
+
+// FEATURE 2: Scan directory from file watcher
+async function scanDirectoryFromWatcher(dirPath, dirId) {
+  try {
+    // Update last scan time
+    db.prepare('UPDATE watched_directories SET last_scan = datetime("now") WHERE id = ?').run(dirId);
+
+    // Trigger a scan
+    // Note: This reuses the existing scan logic
+    if (mainWindow) {
+      mainWindow.webContents.send('file-watcher-scan', dirPath);
+    }
+  } catch (error) {
+    console.error('Error scanning from file watcher:', error);
+  }
+}
+
 // Add this function to get or create a persistent client ID
 function getClientId() {
   try {
@@ -6973,5 +7350,778 @@ ipcMain.handle('check-collect-usage', async (event) => {
   } catch (error) {
     console.error('Error checking CollectUsage setting:', error);
     return null;
+  }
+});
+
+// ========================================================================
+// NEW FEATURES: IPC Handlers for Enhanced Functionality
+// ========================================================================
+
+// FEATURE 1: Smart Collections
+ipcMain.handle('get-smart-collections', async () => {
+  try {
+    return db.prepare('SELECT * FROM smart_collections ORDER BY name').all();
+  } catch (error) {
+    console.error('Error getting smart collections:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-smart-collection', async (event, id) => {
+  try {
+    return db.prepare('SELECT * FROM smart_collections WHERE id = ?').get(id);
+  } catch (error) {
+    console.error('Error getting smart collection:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-smart-collection', async (event, collection) => {
+  try {
+    const { name, description, rules, icon, color } = collection;
+    const rulesJson = JSON.stringify(rules);
+
+    if (collection.id) {
+      // Update existing
+      db.prepare(`
+        UPDATE smart_collections
+        SET name = ?, description = ?, rules = ?, icon = ?, color = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).run(name, description, rulesJson, icon, color, collection.id);
+      return collection.id;
+    } else {
+      // Insert new
+      const result = db.prepare(`
+        INSERT INTO smart_collections (name, description, rules, icon, color)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(name, description, rulesJson, icon, color);
+      return result.lastInsertRowid;
+    }
+  } catch (error) {
+    console.error('Error saving smart collection:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-smart-collection', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM smart_collections WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting smart collection:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-smart-collection-models', async (event, id) => {
+  try {
+    const collection = db.prepare('SELECT * FROM smart_collections WHERE id = ?').get(id);
+    if (!collection) return [];
+
+    const rules = JSON.parse(collection.rules);
+    // Build dynamic query based on rules
+    const { conditions, params } = buildSmartCollectionQuery(rules);
+
+    let query = 'SELECT * FROM models';
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    query += ' ORDER BY fileName';
+
+    return db.prepare(query).all(...params);
+  } catch (error) {
+    console.error('Error getting smart collection models:', error);
+    throw error;
+  }
+});
+
+// Helper function to build smart collection queries
+function buildSmartCollectionQuery(rules) {
+  const conditions = [];
+  const params = [];
+
+  rules.forEach(rule => {
+    const { field, operator, value } = rule;
+
+    switch (operator) {
+      case 'equals':
+        conditions.push(`${field} = ?`);
+        params.push(value);
+        break;
+      case 'contains':
+        conditions.push(`${field} LIKE ?`);
+        params.push(`%${value}%`);
+        break;
+      case 'startsWith':
+        conditions.push(`${field} LIKE ?`);
+        params.push(`${value}%`);
+        break;
+      case 'greaterThan':
+        conditions.push(`${field} > ?`);
+        params.push(value);
+        break;
+      case 'lessThan':
+        conditions.push(`${field} < ?`);
+        params.push(value);
+        break;
+      case 'isEmpty':
+        conditions.push(`(${field} IS NULL OR ${field} = '')`);
+        break;
+      case 'isNotEmpty':
+        conditions.push(`${field} IS NOT NULL AND ${field} != ''`);
+        break;
+    }
+  });
+
+  return { conditions, params };
+}
+
+// FEATURE 2: File Watcher
+ipcMain.handle('get-watched-directories', async () => {
+  try {
+    return db.prepare('SELECT * FROM watched_directories ORDER BY path').all();
+  } catch (error) {
+    console.error('Error getting watched directories:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-watched-directory', async (event, path) => {
+  try {
+    const result = db.prepare(`
+      INSERT INTO watched_directories (path, enabled)
+      VALUES (?, 1)
+    `).run(path);
+
+    // Start watching the directory
+    startWatchingDirectory(path, result.lastInsertRowid);
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error adding watched directory:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('remove-watched-directory', async (event, id) => {
+  try {
+    const dir = db.prepare('SELECT path FROM watched_directories WHERE id = ?').get(id);
+    if (dir) {
+      stopWatchingDirectory(dir.path);
+    }
+    db.prepare('DELETE FROM watched_directories WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error removing watched directory:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('toggle-watched-directory', async (event, id, enabled) => {
+  try {
+    db.prepare('UPDATE watched_directories SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+
+    const dir = db.prepare('SELECT path FROM watched_directories WHERE id = ?').get(id);
+    if (dir) {
+      if (enabled) {
+        startWatchingDirectory(dir.path, id);
+      } else {
+        stopWatchingDirectory(dir.path);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error toggling watched directory:', error);
+    throw error;
+  }
+});
+
+// FEATURE 3: Print Queue & History
+ipcMain.handle('get-print-queue', async () => {
+  try {
+    return db.prepare(`
+      SELECT pq.*, m.fileName, m.thumbnail, m.filePath, m.designer
+      FROM print_queue pq
+      JOIN models m ON pq.model_id = m.id
+      ORDER BY pq.position
+    `).all();
+  } catch (error) {
+    console.error('Error getting print queue:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-to-print-queue', async (event, modelId, priority = 'normal', notes = '') => {
+  try {
+    // Get the max position
+    const maxPos = db.prepare('SELECT MAX(position) as max FROM print_queue').get();
+    const position = (maxPos.max || 0) + 1;
+
+    const result = db.prepare(`
+      INSERT INTO print_queue (model_id, position, priority, notes)
+      VALUES (?, ?, ?, ?)
+    `).run(modelId, position, priority, notes);
+
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error adding to print queue:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('remove-from-print-queue', async (event, id) => {
+  try {
+    // Get the position of the item being removed
+    const item = db.prepare('SELECT position FROM print_queue WHERE id = ?').get(id);
+
+    // Delete the item
+    db.prepare('DELETE FROM print_queue WHERE id = ?').run(id);
+
+    // Reorder remaining items
+    if (item) {
+      db.prepare('UPDATE print_queue SET position = position - 1 WHERE position > ?').run(item.position);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error removing from print queue:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('reorder-print-queue', async (event, items) => {
+  try {
+    db.transaction(() => {
+      items.forEach((item, index) => {
+        db.prepare('UPDATE print_queue SET position = ? WHERE id = ?').run(index + 1, item.id);
+      });
+    })();
+    return true;
+  } catch (error) {
+    console.error('Error reordering print queue:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-print-history', async (event, modelId = null) => {
+  try {
+    if (modelId) {
+      return db.prepare(`
+        SELECT ph.*, m.fileName, m.thumbnail
+        FROM print_history ph
+        JOIN models m ON ph.model_id = m.id
+        WHERE ph.model_id = ?
+        ORDER BY ph.print_date DESC
+      `).all(modelId);
+    } else {
+      return db.prepare(`
+        SELECT ph.*, m.fileName, m.thumbnail, m.filePath, m.designer
+        FROM print_history ph
+        JOIN models m ON ph.model_id = m.id
+        ORDER BY ph.print_date DESC
+        LIMIT 100
+      `).all();
+    }
+  } catch (error) {
+    console.error('Error getting print history:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-to-print-history', async (event, data) => {
+  try {
+    const { modelId, duration, materialUsed, success, notes, rating } = data;
+    const result = db.prepare(`
+      INSERT INTO print_history (model_id, duration, material_used, success, notes, rating)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(modelId, duration, materialUsed, success ? 1 : 0, notes, rating);
+
+    // Update model's printed status
+    db.prepare('UPDATE models SET printed = 1 WHERE id = ?').run(modelId);
+
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error adding to print history:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('mark-as-printed', async (event, modelId) => {
+  try {
+    // Add to print history
+    db.prepare(`
+      INSERT INTO print_history (model_id, success)
+      VALUES (?, 1)
+    `).run(modelId);
+
+    // Update model
+    db.prepare('UPDATE models SET printed = 1 WHERE id = ?').run(modelId);
+
+    return true;
+  } catch (error) {
+    console.error('Error marking as printed:', error);
+    throw error;
+  }
+});
+
+// FEATURE 4: Recent Models (History)
+ipcMain.handle('get-recent-models', async (event, limit = 20) => {
+  try {
+    return db.prepare(`
+      SELECT DISTINCT m.*, rm.accessed_at
+      FROM models m
+      JOIN recent_models rm ON m.id = rm.model_id
+      ORDER BY rm.accessed_at DESC
+      LIMIT ?
+    `).all(limit);
+  } catch (error) {
+    console.error('Error getting recent models:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-to-recent', async (event, modelId) => {
+  try {
+    // Add to recent models
+    db.prepare(`
+      INSERT INTO recent_models (model_id, accessed_at)
+      VALUES (?, datetime('now'))
+    `).run(modelId);
+
+    // Update lastAccessed in models table
+    db.prepare('UPDATE models SET lastAccessed = datetime("now") WHERE id = ?').run(modelId);
+
+    // Keep only last 100 recent models
+    db.prepare(`
+      DELETE FROM recent_models
+      WHERE id NOT IN (
+        SELECT id FROM recent_models
+        ORDER BY accessed_at DESC
+        LIMIT 100
+      )
+    `).run();
+
+    return true;
+  } catch (error) {
+    console.error('Error adding to recent:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('clear-recent-models', async () => {
+  try {
+    db.prepare('DELETE FROM recent_models').run();
+    return true;
+  } catch (error) {
+    console.error('Error clearing recent models:', error);
+    throw error;
+  }
+});
+
+// FEATURE 5: Favorites/Bookmarks
+ipcMain.handle('get-favorites', async () => {
+  try {
+    return db.prepare(`
+      SELECT m.*, f.added_at, f.notes as favorite_notes
+      FROM models m
+      JOIN favorites f ON m.id = f.model_id
+      ORDER BY f.added_at DESC
+    `).all();
+  } catch (error) {
+    console.error('Error getting favorites:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-to-favorites', async (event, modelId, notes = '') => {
+  try {
+    db.prepare(`
+      INSERT INTO favorites (model_id, notes)
+      VALUES (?, ?)
+      ON CONFLICT(model_id) DO UPDATE SET added_at = datetime('now'), notes = ?
+    `).run(modelId, notes, notes);
+    return true;
+  } catch (error) {
+    console.error('Error adding to favorites:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('remove-from-favorites', async (event, modelId) => {
+  try {
+    db.prepare('DELETE FROM favorites WHERE model_id = ?').run(modelId);
+    return true;
+  } catch (error) {
+    console.error('Error removing from favorites:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('is-favorite', async (event, modelId) => {
+  try {
+    const result = db.prepare('SELECT id FROM favorites WHERE model_id = ?').get(modelId);
+    return !!result;
+  } catch (error) {
+    console.error('Error checking favorite status:', error);
+    return false;
+  }
+});
+
+// FEATURE 6: Custom Metadata Fields
+ipcMain.handle('get-custom-fields', async () => {
+  try {
+    return db.prepare('SELECT * FROM custom_fields ORDER BY name').all();
+  } catch (error) {
+    console.error('Error getting custom fields:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-custom-field', async (event, field) => {
+  try {
+    const { name, type, defaultValue, options } = field;
+    const optionsJson = options ? JSON.stringify(options) : null;
+
+    if (field.id) {
+      db.prepare(`
+        UPDATE custom_fields
+        SET name = ?, type = ?, default_value = ?, options = ?
+        WHERE id = ?
+      `).run(name, type, defaultValue, optionsJson, field.id);
+      return field.id;
+    } else {
+      const result = db.prepare(`
+        INSERT INTO custom_fields (name, type, default_value, options)
+        VALUES (?, ?, ?, ?)
+      `).run(name, type, defaultValue, optionsJson);
+      return result.lastInsertRowid;
+    }
+  } catch (error) {
+    console.error('Error saving custom field:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-custom-field', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM custom_fields WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting custom field:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-model-custom-fields', async (event, modelId) => {
+  try {
+    return db.prepare(`
+      SELECT mcf.*, cf.name, cf.type, cf.options
+      FROM model_custom_fields mcf
+      JOIN custom_fields cf ON mcf.field_id = cf.id
+      WHERE mcf.model_id = ?
+    `).all(modelId);
+  } catch (error) {
+    console.error('Error getting model custom fields:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-model-custom-field', async (event, modelId, fieldId, value) => {
+  try {
+    db.prepare(`
+      INSERT INTO model_custom_fields (model_id, field_id, value)
+      VALUES (?, ?, ?)
+      ON CONFLICT(model_id, field_id) DO UPDATE SET value = ?
+    `).run(modelId, fieldId, value, value);
+    return true;
+  } catch (error) {
+    console.error('Error saving model custom field:', error);
+    throw error;
+  }
+});
+
+// FEATURE 7: Bulk Rename Tool
+ipcMain.handle('bulk-rename-models', async (event, models, pattern) => {
+  try {
+    const results = [];
+
+    for (const model of models) {
+      try {
+        const oldPath = model.filePath;
+        const dir = path.dirname(oldPath);
+        const ext = path.extname(oldPath);
+
+        // Replace pattern variables
+        let newName = pattern
+          .replace(/{designer}/g, model.designer || 'Unknown')
+          .replace(/{original}/g, model.fileName.replace(ext, ''))
+          .replace(/{index}/g, models.indexOf(model) + 1)
+          .replace(/{date}/g, new Date().toISOString().split('T')[0]);
+
+        const newPath = path.join(dir, newName + ext);
+
+        // Rename file
+        fs.renameSync(oldPath, newPath);
+
+        // Update database
+        db.prepare('UPDATE models SET filePath = ?, fileName = ? WHERE id = ?')
+          .run(newPath, newName + ext, model.id);
+
+        results.push({ success: true, oldPath, newPath });
+      } catch (error) {
+        results.push({ success: false, oldPath: model.filePath, error: error.message });
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error bulk renaming models:', error);
+    throw error;
+  }
+});
+
+// FEATURE 9: Collection Export/Import
+ipcMain.handle('export-collection', async (event, options) => {
+  try {
+    const { name, description, modelIds, includeFiles, exportPath } = options;
+
+    // Get models
+    const placeholders = modelIds.map(() => '?').join(',');
+    const models = db.prepare(`SELECT * FROM models WHERE id IN (${placeholders})`).all(...modelIds);
+
+    // Get tags for each model
+    for (const model of models) {
+      const tags = db.prepare(`
+        SELECT t.name
+        FROM tags t
+        JOIN model_tags mt ON t.id = mt.tag_id
+        WHERE mt.model_id = ?
+      `).all(model.id);
+      model.tags = tags.map(t => t.name);
+    }
+
+    // Create export data
+    const exportData = {
+      name,
+      description,
+      exportDate: new Date().toISOString(),
+      version: '1.0',
+      modelCount: models.length,
+      models: models.map(m => ({
+        fileName: m.fileName,
+        designer: m.designer,
+        source: m.source,
+        notes: m.notes,
+        printed: m.printed,
+        license: m.license,
+        tags: m.tags,
+        parentModel: m.parentModel,
+        rating: m.rating,
+        printTime: m.printTime
+      }))
+    };
+
+    // Write to file
+    const metadataPath = path.join(exportPath, 'collection.json');
+    fs.writeFileSync(metadataPath, JSON.stringify(exportData, null, 2));
+
+    // Record export
+    db.prepare(`
+      INSERT INTO collection_exports (name, description, model_count, file_path)
+      VALUES (?, ?, ?, ?)
+    `).run(name, description, models.length, exportPath);
+
+    return { success: true, path: exportPath };
+  } catch (error) {
+    console.error('Error exporting collection:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('import-collection', async (event, filePath) => {
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const imported = [];
+    const errors = [];
+
+    for (const modelData of data.models) {
+      try {
+        // Check if model exists by filename
+        const existing = db.prepare('SELECT id FROM models WHERE fileName = ?').get(modelData.fileName);
+
+        if (existing) {
+          // Update metadata only
+          db.prepare(`
+            UPDATE models
+            SET designer = ?, source = ?, notes = ?, license = ?, parentModel = ?, rating = ?, printTime = ?
+            WHERE id = ?
+          `).run(
+            modelData.designer,
+            modelData.source,
+            modelData.notes,
+            modelData.license,
+            modelData.parentModel,
+            modelData.rating,
+            modelData.printTime,
+            existing.id
+          );
+
+          // Import tags
+          if (modelData.tags) {
+            for (const tagName of modelData.tags) {
+              db.prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)').run(tagName);
+              const tag = db.prepare('SELECT id FROM tags WHERE name = ?').get(tagName);
+              db.prepare('INSERT OR IGNORE INTO model_tags (model_id, tag_id) VALUES (?, ?)')
+                .run(existing.id, tag.id);
+            }
+          }
+
+          imported.push(modelData.fileName);
+        } else {
+          errors.push({ file: modelData.fileName, error: 'File not found in library' });
+        }
+      } catch (error) {
+        errors.push({ file: modelData.fileName, error: error.message });
+      }
+    }
+
+    return { success: true, imported: imported.length, errors };
+  } catch (error) {
+    console.error('Error importing collection:', error);
+    throw error;
+  }
+});
+
+// FEATURE 10: Saved Searches
+ipcMain.handle('get-saved-searches', async () => {
+  try {
+    return db.prepare('SELECT * FROM saved_searches ORDER BY name').all();
+  } catch (error) {
+    console.error('Error getting saved searches:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-search', async (event, name, filters) => {
+  try {
+    const filtersJson = JSON.stringify(filters);
+    db.prepare(`
+      INSERT INTO saved_searches (name, filters)
+      VALUES (?, ?)
+      ON CONFLICT(name) DO UPDATE SET filters = ?, last_used = datetime('now')
+    `).run(name, filtersJson, filtersJson);
+    return true;
+  } catch (error) {
+    console.error('Error saving search:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-saved-search', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM saved_searches WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting saved search:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('load-saved-search', async (event, id) => {
+  try {
+    const search = db.prepare('SELECT * FROM saved_searches WHERE id = ?').get(id);
+    if (search) {
+      // Update last used
+      db.prepare('UPDATE saved_searches SET last_used = datetime("now") WHERE id = ?').run(id);
+      return JSON.parse(search.filters);
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading saved search:', error);
+    throw error;
+  }
+});
+
+// FEATURE 4: Statistics Dashboard
+ipcMain.handle('get-statistics', async () => {
+  try {
+    const stats = {
+      totalModels: db.prepare('SELECT COUNT(*) as count FROM models').get().count,
+      totalDesigners: db.prepare('SELECT COUNT(DISTINCT designer) as count FROM models WHERE designer IS NOT NULL AND designer != ""').get().count,
+      totalTags: db.prepare('SELECT COUNT(*) as count FROM tags').get().count,
+      totalPrinted: db.prepare('SELECT COUNT(*) as count FROM models WHERE printed = 1').get().count,
+      totalNotPrinted: db.prepare('SELECT COUNT(*) as count FROM models WHERE printed = 0').get().count,
+      totalFavorites: db.prepare('SELECT COUNT(*) as count FROM favorites').get().count,
+      totalSize: db.prepare('SELECT SUM(size) as total FROM models').get().total || 0,
+
+      // Print statistics
+      totalPrints: db.prepare('SELECT COUNT(*) as count FROM print_history').get().count,
+      successfulPrints: db.prepare('SELECT COUNT(*) as count FROM print_history WHERE success = 1').get().count,
+      failedPrints: db.prepare('SELECT COUNT(*) as count FROM print_history WHERE success = 0').get().count,
+
+      // Top designers
+      topDesigners: db.prepare(`
+        SELECT designer, COUNT(*) as count
+        FROM models
+        WHERE designer IS NOT NULL AND designer != ''
+        GROUP BY designer
+        ORDER BY count DESC
+        LIMIT 10
+      `).all(),
+
+      // Top tags
+      topTags: db.prepare(`
+        SELECT t.name, COUNT(mt.model_id) as count
+        FROM tags t
+        LEFT JOIN model_tags mt ON t.id = mt.tag_id
+        GROUP BY t.id, t.name
+        ORDER BY count DESC
+        LIMIT 10
+      `).all(),
+
+      // File types
+      fileTypes: db.prepare(`
+        SELECT
+          SUM(CASE WHEN fileName LIKE '%.stl' THEN 1 ELSE 0 END) as stl,
+          SUM(CASE WHEN fileName LIKE '%.3mf' THEN 1 ELSE 0 END) as threemf,
+          SUM(CASE WHEN fileName LIKE '%.zip' THEN 1 ELSE 0 END) as zip
+        FROM models
+      `).get(),
+
+      // Models by month
+      modelsByMonth: db.prepare(`
+        SELECT strftime('%Y-%m', dateAdded) as month, COUNT(*) as count
+        FROM models
+        WHERE dateAdded IS NOT NULL
+        GROUP BY month
+        ORDER BY month DESC
+        LIMIT 12
+      `).all(),
+
+      // Recently added (last 7 days)
+      recentlyAdded: db.prepare(`
+        SELECT COUNT(*) as count
+        FROM models
+        WHERE dateAdded >= datetime('now', '-7 days')
+      `).get().count,
+
+      // Recently accessed
+      recentlyAccessed: db.prepare(`
+        SELECT COUNT(*) as count
+        FROM models
+        WHERE lastAccessed >= datetime('now', '-7 days')
+      `).get().count || 0,
+
+      // Average rating
+      averageRating: db.prepare(`
+        SELECT AVG(rating) as avg
+        FROM models
+        WHERE rating > 0
+      `).get().avg || 0
+    };
+
+    return stats;
+  } catch (error) {
+    console.error('Error getting statistics:', error);
+    throw error;
   }
 });

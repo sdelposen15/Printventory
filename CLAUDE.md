@@ -1177,7 +1177,460 @@ When reviewing or submitting code:
 
 ---
 
-**Document Version:** 1.0
+## Enhanced Features (v2.0)
+
+Printventory v2.0 includes 10 powerful new features that significantly expand the application's capabilities:
+
+### 1. Smart Collections
+**Database Tables:** `smart_collections`
+
+Rule-based dynamic collections that automatically filter models based on user-defined criteria. Similar to iTunes Smart Playlists, these collections update automatically as your library changes.
+
+**Key Features:**
+- Define collections using multiple filter rules (designer, tags, size, date, etc.)
+- Support for complex operators (equals, contains, greater than, less than, isEmpty)
+- Collections update dynamically without manual intervention
+- Customizable icons and colors for visual organization
+
+**Usage:**
+```javascript
+// Create a smart collection
+const collection = {
+  name: "Large STL Files",
+  description: "All STL files larger than 10MB",
+  rules: [
+    { field: "fileName", operator: "contains", value: ".stl" },
+    { field: "size", operator: "greaterThan", value: 10485760 }
+  ],
+  icon: "📦",
+  color: "#4CAF50"
+};
+await window.electron.saveSmartCollection(collection);
+
+// Get models matching collection rules
+const models = await window.electron.getSmartCollectionModels(collectionId);
+```
+
+### 2. File Watcher
+**Database Tables:** `watched_directories`
+
+Real-time directory monitoring that automatically detects new model files and triggers scans without manual intervention.
+
+**Key Features:**
+- Monitor multiple directories simultaneously
+- Automatic debounced scanning (5-second delay after last change)
+- Enable/disable watchers individually
+- Track last scan time per directory
+- Supports STL and 3MF file detection
+
+**Implementation:**
+- Uses Node.js `fs.watch()` with recursive monitoring
+- Debouncing prevents excessive scanning during bulk operations
+- Integration with existing scan infrastructure
+
+**Usage:**
+```javascript
+// Add a directory to watch
+await window.electron.addWatchedDirectory('/path/to/models');
+
+// Toggle watching
+await window.electron.toggleWatchedDirectory(dirId, true);
+
+// Listen for automatic scans
+window.electron.onFileWatcherScan((path) => {
+  console.log(`Auto-scanning ${path}...`);
+});
+```
+
+### 3. Print Queue & History
+**Database Tables:** `print_queue`, `print_history`
+
+Complete print workflow management system for tracking what to print and what has been printed.
+
+**Print Queue Features:**
+- Drag-and-drop reordering
+- Priority levels (normal, high, low)
+- Notes and estimated print time per item
+- Automatic position management
+
+**Print History Features:**
+- Track successful and failed prints
+- Record duration, material used, and ratings
+- Per-model print history
+- Success rate analytics
+
+**Usage:**
+```javascript
+// Add to print queue
+await window.electron.addToPrintQueue(modelId, 'high', 'Print ASAP');
+
+// Mark as printed with details
+await window.electron.addToPrintHistory({
+  modelId: 123,
+  duration: 7200, // seconds
+  materialUsed: 25.5, // grams
+  success: true,
+  rating: 5,
+  notes: 'Perfect print!'
+});
+
+// Get queue
+const queue = await window.electron.getPrintQueue();
+
+// Get history
+const history = await window.electron.getPrintHistory();
+```
+
+### 4. Statistics Dashboard
+**Database:** Computed from existing tables
+
+Comprehensive analytics and insights about your model collection.
+
+**Statistics Included:**
+- Total models, designers, tags, prints
+- Printed vs. not printed ratios
+- Total library size
+- File type breakdown (STL, 3MF, ZIP)
+- Top 10 designers and tags
+- Models added per month (last 12 months)
+- Average rating
+- Recently added/accessed counts
+- Print success rate
+
+**Usage:**
+```javascript
+const stats = await window.electron.getStatistics();
+console.log(`Total models: ${stats.totalModels}`);
+console.log(`Print success rate: ${(stats.successfulPrints / stats.totalPrints * 100).toFixed(1)}%`);
+```
+
+### 5. Favorites/Bookmarks
+**Database Tables:** `favorites`
+
+Quick-access bookmarking system for frequently used models.
+
+**Key Features:**
+- One-click favorite toggle
+- Optional notes per favorite
+- Dedicated favorites view
+- Favorite status indicator in model cards
+
+**Usage:**
+```javascript
+// Toggle favorite
+await window.electron.addToFavorites(modelId, 'My best design');
+
+// Check if favorited
+const isFav = await window.electron.isFavorite(modelId);
+
+// Get all favorites
+const favorites = await window.electron.getFavorites();
+```
+
+### 6. Custom Metadata Fields
+**Database Tables:** `custom_fields`, `model_custom_fields`
+
+User-defined metadata fields for specialized organization beyond standard fields.
+
+**Field Types:**
+- Text
+- Number
+- Date
+- Boolean
+- Select (dropdown with predefined options)
+
+**Key Features:**
+- Define unlimited custom fields
+- Per-model custom field values
+- Type validation
+- Default values
+- Dropdown options for select fields
+
+**Usage:**
+```javascript
+// Define a custom field
+await window.electron.saveCustomField({
+  name: "Material Type",
+  type: "select",
+  options: ["PLA", "PETG", "ABS", "TPU"],
+  defaultValue: "PLA"
+});
+
+// Set value for a model
+await window.electron.saveModelCustomField(modelId, fieldId, "PETG");
+
+// Get custom fields for a model
+const fields = await window.electron.getModelCustomFields(modelId);
+```
+
+### 7. Bulk Rename Tool
+**Implementation:** File system operations with database sync
+
+Pattern-based bulk file renaming with variable substitution.
+
+**Available Variables:**
+- `{designer}` - Designer name
+- `{original}` - Original filename (without extension)
+- `{index}` - Sequential number
+- `{date}` - Current date (YYYY-MM-DD)
+
+**Key Features:**
+- Preview before rename
+- Batch processing
+- Automatic database updates
+- Error handling with rollback
+- Preserves file extensions
+
+**Usage:**
+```javascript
+const pattern = "{designer} - {original} - {date}";
+const results = await window.electron.bulkRenameModels(selectedModels, pattern);
+
+results.forEach(result => {
+  if (result.success) {
+    console.log(`Renamed: ${result.oldPath} → ${result.newPath}`);
+  } else {
+    console.error(`Failed: ${result.oldPath} - ${result.error}`);
+  }
+});
+```
+
+### 8. Recent Models History
+**Database Tables:** `recent_models`, `models.lastAccessed`
+
+Automatic tracking of recently accessed models for quick retrieval.
+
+**Key Features:**
+- Automatic tracking on model view
+- Configurable history length (default: 100)
+- Sorted by access time
+- Duplicate prevention
+- Quick clear function
+
+**Usage:**
+```javascript
+// Automatically called when viewing a model
+await window.electron.addToRecent(modelId);
+
+// Get recent models
+const recent = await window.electron.getRecentModels(20); // Last 20
+
+// Clear history
+await window.electron.clearRecentModels();
+```
+
+### 9. Collection Export/Import
+**Database Tables:** `collection_exports`
+
+Share collections with complete metadata preservation.
+
+**Export Features:**
+- JSON-based metadata format
+- Includes all model metadata
+- Tags included
+- Optional file copying
+- Version tracking
+
+**Import Features:**
+- Metadata-only import (matches by filename)
+- Tag creation/merging
+- Existing model detection
+- Error reporting
+
+**Usage:**
+```javascript
+// Export collection
+const result = await window.electron.exportCollection({
+  name: "My Best Prints",
+  description: "Top quality models from 2025",
+  modelIds: [1, 2, 3, 4, 5],
+  includeFiles: false,
+  exportPath: "/path/to/export"
+});
+
+// Import collection
+const importResult = await window.electron.importCollection('/path/to/collection.json');
+console.log(`Imported ${importResult.imported} models`);
+console.log(`Errors: ${importResult.errors.length}`);
+```
+
+### 10. Saved Searches
+**Database Tables:** `saved_searches`
+
+Save and reuse complex search filter combinations.
+
+**Key Features:**
+- Save any filter combination
+- Named searches
+- One-click search loading
+- Last used tracking
+- Quick search history
+
+**Usage:**
+```javascript
+// Save current filters
+await window.electron.saveSearch("Unprinted Large Models", {
+  printed: 'not-printed',
+  sortOption: 'size-desc',
+  sizeMin: 5000000
+});
+
+// Load saved search
+const filters = await window.electron.loadSavedSearch(searchId);
+// Apply filters to UI...
+
+// Get all saved searches
+const searches = await window.electron.getSavedSearches();
+```
+
+---
+
+## Database Schema Updates (v2.0)
+
+### New Tables
+
+```sql
+-- Smart Collections
+CREATE TABLE smart_collections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    rules TEXT NOT NULL, -- JSON
+    icon TEXT,
+    color TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- File Watcher
+CREATE TABLE watched_directories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path TEXT NOT NULL UNIQUE,
+    enabled INTEGER DEFAULT 1,
+    last_scan DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Print Queue
+CREATE TABLE print_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL,
+    position INTEGER NOT NULL,
+    priority TEXT DEFAULT 'normal',
+    notes TEXT,
+    estimated_time INTEGER,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+);
+
+-- Print History
+CREATE TABLE print_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL,
+    print_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    duration INTEGER,
+    material_used REAL,
+    success INTEGER DEFAULT 1,
+    notes TEXT,
+    rating INTEGER,
+    FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+);
+
+-- Recent Models
+CREATE TABLE recent_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL,
+    accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+);
+
+-- Favorites
+CREATE TABLE favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL UNIQUE,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+);
+
+-- Custom Fields Definition
+CREATE TABLE custom_fields (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL, -- text, number, date, boolean, select
+    default_value TEXT,
+    options TEXT, -- JSON for select options
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Custom Field Values
+CREATE TABLE model_custom_fields (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL,
+    field_id INTEGER NOT NULL,
+    value TEXT,
+    FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,
+    FOREIGN KEY(field_id) REFERENCES custom_fields(id) ON DELETE CASCADE,
+    UNIQUE(model_id, field_id)
+);
+
+-- Saved Searches
+CREATE TABLE saved_searches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    filters TEXT NOT NULL, -- JSON
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used DATETIME
+);
+
+-- Collection Exports
+CREATE TABLE collection_exports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    model_count INTEGER,
+    export_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    file_path TEXT
+);
+```
+
+### Models Table Additions
+
+```sql
+-- New columns added to existing models table
+ALTER TABLE models ADD COLUMN rating INTEGER DEFAULT 0;
+ALTER TABLE models ADD COLUMN printTime INTEGER;
+ALTER TABLE models ADD COLUMN lastAccessed DATETIME;
+```
+
+---
+
+## Menu Structure Updates (v2.0)
+
+### New Menus
+
+**Collections Menu:**
+- Smart Collections
+- Favorites
+- Recent Models
+- Saved Searches
+- Export Collection
+- Import Collection
+
+**Print Menu:**
+- Print Queue
+- Print History
+- Print Roulette
+
+**Updated Tools Menu:**
+- Bulk Rename (new)
+- Custom Fields (new)
+- File Watcher (new)
+- [existing tools...]
+
+---
+
+**Document Version:** 2.0
 **Last Updated:** 2026-01-22
 **Maintainer:** Claude AI (auto-generated)
 

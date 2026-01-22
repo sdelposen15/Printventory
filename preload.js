@@ -187,7 +187,76 @@ contextBridge.exposeInMainWorld('electron', {
   rollbackTransaction: () => ipcRenderer.invoke('database:rollback-transaction'),
   getAllModelReferences: () => ipcRenderer.invoke('get-all-model-references'),
   showInputDialog: (options) => ipcRenderer.invoke('show-input-dialog', options),
-  pull3MFMetadata: (filePaths) => ipcRenderer.invoke('pull-3mf-metadata', filePaths)
+  pull3MFMetadata: (filePaths) => ipcRenderer.invoke('pull-3mf-metadata', filePaths),
+
+  // NEW FEATURES: Enhanced functionality
+  // FEATURE 1: Smart Collections
+  getSmartCollections: () => ipcRenderer.invoke('get-smart-collections'),
+  getSmartCollection: (id) => ipcRenderer.invoke('get-smart-collection', id),
+  saveSmartCollection: (collection) => ipcRenderer.invoke('save-smart-collection', collection),
+  deleteSmartCollection: (id) => ipcRenderer.invoke('delete-smart-collection', id),
+  getSmartCollectionModels: (id) => ipcRenderer.invoke('get-smart-collection-models', id),
+  onOpenSmartCollections: (callback) => ipcRenderer.on('open-smart-collections', callback),
+
+  // FEATURE 2: File Watcher
+  getWatchedDirectories: () => ipcRenderer.invoke('get-watched-directories'),
+  addWatchedDirectory: (path) => ipcRenderer.invoke('add-watched-directory', path),
+  removeWatchedDirectory: (id) => ipcRenderer.invoke('remove-watched-directory', id),
+  toggleWatchedDirectory: (id, enabled) => ipcRenderer.invoke('toggle-watched-directory', id, enabled),
+  onFileWatcherScan: (callback) => ipcRenderer.on('file-watcher-scan', (event, path) => callback(path)),
+
+  // FEATURE 3: Print Queue & History
+  getPrintQueue: () => ipcRenderer.invoke('get-print-queue'),
+  addToPrintQueue: (modelId, priority, notes) => ipcRenderer.invoke('add-to-print-queue', modelId, priority, notes),
+  removeFromPrintQueue: (id) => ipcRenderer.invoke('remove-from-print-queue', id),
+  reorderPrintQueue: (items) => ipcRenderer.invoke('reorder-print-queue', items),
+  getPrintHistory: (modelId) => ipcRenderer.invoke('get-print-history', modelId),
+  addToPrintHistory: (data) => ipcRenderer.invoke('add-to-print-history', data),
+  markAsPrinted: (modelId) => ipcRenderer.invoke('mark-as-printed', modelId),
+  onOpenPrintQueue: (callback) => ipcRenderer.on('open-print-queue', callback),
+  onOpenPrintHistory: (callback) => ipcRenderer.on('open-print-history', callback),
+
+  // FEATURE 4: Recent Models (History)
+  getRecentModels: (limit) => ipcRenderer.invoke('get-recent-models', limit),
+  addToRecent: (modelId) => ipcRenderer.invoke('add-to-recent', modelId),
+  clearRecentModels: () => ipcRenderer.invoke('clear-recent-models'),
+  onOpenRecentModels: (callback) => ipcRenderer.on('open-recent-models', callback),
+
+  // FEATURE 5: Favorites/Bookmarks
+  getFavorites: () => ipcRenderer.invoke('get-favorites'),
+  addToFavorites: (modelId, notes) => ipcRenderer.invoke('add-to-favorites', modelId, notes),
+  removeFromFavorites: (modelId) => ipcRenderer.invoke('remove-from-favorites', modelId),
+  isFavorite: (modelId) => ipcRenderer.invoke('is-favorite', modelId),
+  onOpenFavorites: (callback) => ipcRenderer.on('open-favorites', callback),
+
+  // FEATURE 6: Custom Metadata Fields
+  getCustomFields: () => ipcRenderer.invoke('get-custom-fields'),
+  saveCustomField: (field) => ipcRenderer.invoke('save-custom-field', field),
+  deleteCustomField: (id) => ipcRenderer.invoke('delete-custom-field', id),
+  getModelCustomFields: (modelId) => ipcRenderer.invoke('get-model-custom-fields', modelId),
+  saveModelCustomField: (modelId, fieldId, value) => ipcRenderer.invoke('save-model-custom-field', modelId, fieldId, value),
+  onOpenCustomFields: (callback) => ipcRenderer.on('open-custom-fields', callback),
+
+  // FEATURE 7: Bulk Rename Tool
+  bulkRenameModels: (models, pattern) => ipcRenderer.invoke('bulk-rename-models', models, pattern),
+  onOpenBulkRename: (callback) => ipcRenderer.on('open-bulk-rename', callback),
+
+  // FEATURE 9: Collection Export/Import
+  exportCollection: (options) => ipcRenderer.invoke('export-collection', options),
+  importCollection: (filePath) => ipcRenderer.invoke('import-collection', filePath),
+  onOpenCollectionExport: (callback) => ipcRenderer.on('open-collection-export', callback),
+  onOpenCollectionImport: (callback) => ipcRenderer.on('open-collection-import', callback),
+
+  // FEATURE 10: Saved Searches
+  getSavedSearches: () => ipcRenderer.invoke('get-saved-searches'),
+  saveSearch: (name, filters) => ipcRenderer.invoke('save-search', name, filters),
+  deleteSavedSearch: (id) => ipcRenderer.invoke('delete-saved-search', id),
+  loadSavedSearch: (id) => ipcRenderer.invoke('load-saved-search', id),
+  onOpenSavedSearches: (callback) => ipcRenderer.on('open-saved-searches', callback),
+
+  // FEATURE 4: Statistics Dashboard
+  getStatistics: () => ipcRenderer.invoke('get-statistics'),
+  onOpenStatistics: (callback) => ipcRenderer.on('open-statistics', callback)
 });
 
 contextBridge.exposeInMainWorld('electronAPI', {
