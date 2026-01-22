@@ -96,6 +96,7 @@
       "guide/*",
       "bg.png",
       "search.js",
+      "features-ui.js",
       "scan-worker.js",
       "server-bridge.js",
       "installer.nsh",

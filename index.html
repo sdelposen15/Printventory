@@ -1195,6 +1195,7 @@ docker run -d --name printventory-server -p 5000:5000 -v printventory-data:/root
   <script src="renderer.js"></script>
   <script type="module" src="slicer.js"></script>
   <script src="guide.js"></script>
+  <script src="features-ui.js"></script>
 
   <!-- Add this template for slicer entries -->
   <template id="slicer-entry-template">
@@ -1211,6 +1212,359 @@ docker run -d --name printventory-server -p 5000:5000 -v printventory-data:/root
       </div>
     </div>
   </template>
+
+  <!-- NEW FEATURES: Enhanced UI Dialogs -->
+
+  <!-- FEATURE 1: Smart Collections Dialog -->
+  <dialog id="smart-collections-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Smart Collections</h3>
+      <div class="smart-collections-container">
+        <div class="collections-sidebar">
+          <button type="button" id="new-smart-collection-btn" class="action-button">+ New Collection</button>
+          <div id="collections-list" class="collections-list"></div>
+        </div>
+        <div class="collection-content">
+          <div id="collection-editor" class="collection-editor" style="display: none;">
+            <input type="text" id="collection-name" placeholder="Collection Name" required>
+            <textarea id="collection-description" placeholder="Description (optional)" rows="2"></textarea>
+            <div class="collection-icon-color">
+              <input type="text" id="collection-icon" placeholder="Icon (emoji)" maxlength="2">
+              <input type="color" id="collection-color" value="#4CAF50">
+            </div>
+            <h4>Rules</h4>
+            <div id="collection-rules" class="collection-rules"></div>
+            <button type="button" id="add-rule-btn" class="action-button">+ Add Rule</button>
+            <div class="dialog-buttons">
+              <button type="button" id="save-collection-btn" class="action-button">Save Collection</button>
+              <button type="button" id="delete-collection-btn" class="danger-button">Delete</button>
+            </div>
+          </div>
+          <div id="collection-viewer" class="collection-viewer"></div>
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 2: File Watcher Dialog -->
+  <dialog id="file-watcher-dialog" class="modal">
+    <form method="dialog">
+      <h3>File Watcher Settings</h3>
+      <p>Monitor directories for new 3D model files and automatically scan them.</p>
+      <button type="button" id="add-watched-dir-btn" class="action-button">+ Add Directory</button>
+      <div id="watched-directories-list" class="watched-dirs-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 3: Print Queue Dialog -->
+  <dialog id="print-queue-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Print Queue</h3>
+      <p>Manage your print queue by dragging to reorder items.</p>
+      <div id="print-queue-list" class="print-queue-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 3: Print History Dialog -->
+  <dialog id="print-history-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Print History</h3>
+      <div class="print-history-stats">
+        <div class="stat-card">
+          <h4 id="total-prints-stat">0</h4>
+          <p>Total Prints</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="success-rate-stat">0%</h4>
+          <p>Success Rate</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="avg-rating-stat">0</h4>
+          <p>Avg Rating</p>
+        </div>
+      </div>
+      <div id="print-history-list" class="print-history-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 3: Mark as Printed Dialog -->
+  <dialog id="mark-printed-dialog" class="modal">
+    <form method="dialog">
+      <h3>Mark as Printed</h3>
+      <input type="hidden" id="printed-model-id">
+      <div class="form-group">
+        <label for="print-duration">Duration (hours:minutes):</label>
+        <input type="text" id="print-duration" placeholder="2:30">
+      </div>
+      <div class="form-group">
+        <label for="print-material">Material Used (grams):</label>
+        <input type="number" id="print-material" placeholder="25.5" step="0.1">
+      </div>
+      <div class="form-group">
+        <label for="print-success">Success:</label>
+        <select id="print-success">
+          <option value="1">Successful</option>
+          <option value="0">Failed</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="print-rating">Rating:</label>
+        <div class="rating-input">
+          <span class="star" data-rating="1">☆</span>
+          <span class="star" data-rating="2">☆</span>
+          <span class="star" data-rating="3">☆</span>
+          <span class="star" data-rating="4">☆</span>
+          <span class="star" data-rating="5">☆</span>
+        </div>
+        <input type="hidden" id="print-rating" value="0">
+      </div>
+      <div class="form-group">
+        <label for="print-notes">Notes:</label>
+        <textarea id="print-notes" rows="3" placeholder="Print notes..."></textarea>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-print-history-btn">Save</button>
+        <button type="button" id="cancel-print-history-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 4: Statistics Dashboard Dialog -->
+  <dialog id="statistics-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Statistics Dashboard</h3>
+      <div class="statistics-grid">
+        <div class="stat-card">
+          <h4 id="stat-total-models">0</h4>
+          <p>Total Models</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-total-designers">0</h4>
+          <p>Designers</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-total-tags">0</h4>
+          <p>Tags</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-total-size">0 GB</h4>
+          <p>Total Size</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-printed-ratio">0%</h4>
+          <p>Printed</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-favorites">0</h4>
+          <p>Favorites</p>
+        </div>
+      </div>
+      <div class="statistics-details">
+        <div class="stat-section">
+          <h4>Top 10 Designers</h4>
+          <div id="top-designers-list" class="top-list"></div>
+        </div>
+        <div class="stat-section">
+          <h4>Top 10 Tags</h4>
+          <div id="top-tags-list" class="top-list"></div>
+        </div>
+        <div class="stat-section">
+          <h4>File Types</h4>
+          <div id="file-types-chart" class="chart"></div>
+        </div>
+        <div class="stat-section">
+          <h4>Models Added (Last 12 Months)</h4>
+          <div id="models-by-month-chart" class="chart"></div>
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 5: Favorites View Dialog -->
+  <dialog id="favorites-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Favorites</h3>
+      <div id="favorites-grid" class="favorites-grid"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 6: Custom Fields Manager Dialog -->
+  <dialog id="custom-fields-dialog" class="modal">
+    <form method="dialog">
+      <h3>Custom Fields Manager</h3>
+      <div class="form-group">
+        <button type="button" id="new-custom-field-btn" class="action-button">+ New Field</button>
+      </div>
+      <div id="custom-fields-list" class="custom-fields-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 6: New/Edit Custom Field Dialog -->
+  <dialog id="edit-custom-field-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="custom-field-dialog-title">New Custom Field</h3>
+      <input type="hidden" id="custom-field-id">
+      <div class="form-group">
+        <label for="custom-field-name">Field Name:</label>
+        <input type="text" id="custom-field-name" required>
+      </div>
+      <div class="form-group">
+        <label for="custom-field-type">Field Type:</label>
+        <select id="custom-field-type">
+          <option value="text">Text</option>
+          <option value="number">Number</option>
+          <option value="date">Date</option>
+          <option value="boolean">Boolean</option>
+          <option value="select">Select (Dropdown)</option>
+        </select>
+      </div>
+      <div class="form-group" id="custom-field-options-group" style="display: none;">
+        <label for="custom-field-options">Options (comma-separated):</label>
+        <input type="text" id="custom-field-options" placeholder="Option1, Option2, Option3">
+      </div>
+      <div class="form-group">
+        <label for="custom-field-default">Default Value:</label>
+        <input type="text" id="custom-field-default">
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-custom-field-btn">Save</button>
+        <button type="button" id="cancel-custom-field-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 7: Bulk Rename Dialog -->
+  <dialog id="bulk-rename-dialog" class="modal">
+    <form method="dialog">
+      <h3>Bulk Rename Tool</h3>
+      <p>Select models in multi-select mode, then use this tool to rename them.</p>
+      <div class="form-group">
+        <label for="rename-pattern">Rename Pattern:</label>
+        <input type="text" id="rename-pattern" placeholder="{designer} - {original} - {date}" value="{designer} - {original}">
+        <small>Available variables: {designer}, {original}, {index}, {date}</small>
+      </div>
+      <div class="form-group">
+        <label>Preview:</label>
+        <div id="rename-preview" class="rename-preview"></div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="button" id="apply-rename-btn" class="action-button">Apply Rename</button>
+        <button type="submit">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 8: Recent Models Dialog -->
+  <dialog id="recent-models-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Recent Models</h3>
+      <div class="form-group">
+        <button type="button" id="clear-recent-btn" class="danger-button">Clear History</button>
+      </div>
+      <div id="recent-models-grid" class="recent-models-grid"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 9: Export Collection Dialog -->
+  <dialog id="export-collection-dialog" class="modal">
+    <form method="dialog">
+      <h3>Export Collection</h3>
+      <p>Export selected models with metadata to share with others.</p>
+      <p><strong>Tip:</strong> Select models in multi-select mode before opening this dialog.</p>
+      <div class="form-group">
+        <label for="export-name">Collection Name:</label>
+        <input type="text" id="export-name" placeholder="My Collection" required>
+      </div>
+      <div class="form-group">
+        <label for="export-description">Description:</label>
+        <textarea id="export-description" rows="3" placeholder="Collection description..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="export-include-files">
+          Include model files (not just metadata)
+        </label>
+      </div>
+      <div class="dialog-buttons">
+        <button type="button" id="do-export-btn" class="action-button">Export</button>
+        <button type="submit">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 9: Import Collection Dialog -->
+  <dialog id="import-collection-dialog" class="modal">
+    <form method="dialog">
+      <h3>Import Collection</h3>
+      <p>Import a collection JSON file to add metadata to your library.</p>
+      <div class="form-group">
+        <label for="import-file-path">Collection File:</label>
+        <div class="input-with-icon">
+          <input type="text" id="import-file-path" placeholder="Select collection.json file..." readonly>
+          <button type="button" id="browse-import-btn" class="icon-button">📁</button>
+        </div>
+      </div>
+      <div id="import-results" class="import-results" style="display: none;"></div>
+      <div class="dialog-buttons">
+        <button type="button" id="do-import-btn" class="action-button">Import</button>
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 10: Saved Searches Dialog -->
+  <dialog id="saved-searches-dialog" class="modal">
+    <form method="dialog">
+      <h3>Saved Searches</h3>
+      <div class="form-group">
+        <button type="button" id="save-current-search-btn" class="action-button">+ Save Current Search</button>
+      </div>
+      <div id="saved-searches-list" class="saved-searches-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 10: Save Search Dialog -->
+  <dialog id="save-search-dialog" class="modal">
+    <form method="dialog">
+      <h3>Save Search</h3>
+      <div class="form-group">
+        <label for="search-name">Search Name:</label>
+        <input type="text" id="search-name" placeholder="My Search" required>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="do-save-search-btn">Save</button>
+        <button type="button" id="cancel-save-search-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
   <script>
     document.getElementById('dismiss-welcome')?.addEventListener('click', () => {
       const welcomeDialog = document.getElementById('welcome-message');
