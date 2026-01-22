@@ -1280,6 +1280,39 @@ function initializeDatabase() {
           file_path TEXT
       )`).run();
 
+      // FEATURE 11: Model Groups (Folders)
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_groups (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          description TEXT,
+          thumbnail TEXT,
+          parent_group_id INTEGER,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(parent_group_id) REFERENCES model_groups(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 11: Group membership junction table
+      db.prepare(`CREATE TABLE IF NOT EXISTS group_members (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          group_id INTEGER NOT NULL,
+          model_id INTEGER NOT NULL,
+          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(group_id) REFERENCES model_groups(id) ON DELETE CASCADE,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,
+          UNIQUE(group_id, model_id)
+      )`).run();
+
+      // FEATURE 11: Group tags (tags can be assigned to groups)
+      db.prepare(`CREATE TABLE IF NOT EXISTS group_tags (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          group_id INTEGER NOT NULL,
+          tag_id INTEGER NOT NULL,
+          FOREIGN KEY(group_id) REFERENCES model_groups(id) ON DELETE CASCADE,
+          FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+          UNIQUE(group_id, tag_id)
+      )`).run();
+
       // Create indexes for better performance
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_filepath ON models(filePath)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_filename ON models(fileName)').run();
@@ -1315,6 +1348,12 @@ function initializeDatabase() {
       db.prepare('CREATE INDEX IF NOT EXISTS idx_model_custom_fields_field ON model_custom_fields(field_id)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_saved_searches_name ON saved_searches(name)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_watched_directories_path ON watched_directories(path)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_groups_name ON model_groups(name)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_groups_parent ON model_groups(parent_group_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_group_members_model ON group_members(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_group_tags_group ON group_tags(group_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_group_tags_tag ON group_tags(tag_id)').run();
     })();
     
     // Migrate existing database: add dateAdded column if it doesn't exist
@@ -8122,6 +8161,351 @@ ipcMain.handle('get-statistics', async () => {
     return stats;
   } catch (error) {
     console.error('Error getting statistics:', error);
+    throw error;
+  }
+});
+// ========================================================================
+// FEATURE 11: Model Groups (Folders) with Images and Hierarchical Tags
+// ========================================================================
+
+// Get all groups
+ipcMain.handle('get-model-groups', async () => {
+  try {
+    const groups = db.prepare(`
+      SELECT g.*, 
+             COUNT(DISTINCT gm.model_id) as model_count,
+             (SELECT GROUP_CONCAT(t.name, ', ') 
+              FROM group_tags gt 
+              JOIN tags t ON gt.tag_id = t.id 
+              WHERE gt.group_id = g.id) as tag_names
+      FROM model_groups g
+      LEFT JOIN group_members gm ON g.id = gm.group_id
+      GROUP BY g.id
+      ORDER BY g.name
+    `).all();
+    return groups;
+  } catch (error) {
+    console.error('Error getting model groups:', error);
+    throw error;
+  }
+});
+
+// Get a specific group with all details
+ipcMain.handle('get-model-group', async (event, id) => {
+  try {
+    const group = db.prepare('SELECT * FROM model_groups WHERE id = ?').get(id);
+    if (!group) return null;
+
+    // Get members
+    group.models = db.prepare(`
+      SELECT m.* FROM models m
+      JOIN group_members gm ON m.id = gm.model_id
+      WHERE gm.group_id = ?
+      ORDER BY m.fileName
+    `).all(id);
+
+    // Get tags
+    group.tags = db.prepare(`
+      SELECT t.* FROM tags t
+      JOIN group_tags gt ON t.id = gt.tag_id
+      WHERE gt.group_id = ?
+    `).all(id);
+
+    return group;
+  } catch (error) {
+    console.error('Error getting model group:', error);
+    throw error;
+  }
+});
+
+// Create a new group
+ipcMain.handle('create-model-group', async (event, data) => {
+  try {
+    const { name, description, parentGroupId, modelIds, thumbnail } = data;
+
+    const result = db.prepare(`
+      INSERT INTO model_groups (name, description, parent_group_id, thumbnail)
+      VALUES (?, ?, ?, ?)
+    `).run(name, description, parentGroupId || null, thumbnail || null);
+
+    const groupId = result.lastInsertRowid;
+
+    // Add models to group if provided
+    if (modelIds && modelIds.length > 0) {
+      const insertMember = db.prepare('INSERT INTO group_members (group_id, model_id) VALUES (?, ?)');
+      const transaction = db.transaction((ids) => {
+        for (const modelId of ids) {
+          try {
+            insertMember.run(groupId, modelId);
+          } catch (err) {
+            console.error(`Error adding model ${modelId} to group:`, err);
+          }
+        }
+      });
+      transaction(modelIds);
+    }
+
+    return groupId;
+  } catch (error) {
+    console.error('Error creating model group:', error);
+    throw error;
+  }
+});
+
+// Update group
+ipcMain.handle('update-model-group', async (event, id, data) => {
+  try {
+    const { name, description, thumbnail } = data;
+    db.prepare(`
+      UPDATE model_groups
+      SET name = ?, description = ?, thumbnail = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(name, description, thumbnail, id);
+    return true;
+  } catch (error) {
+    console.error('Error updating model group:', error);
+    throw error;
+  }
+});
+
+// Delete group
+ipcMain.handle('delete-model-group', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM model_groups WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting model group:', error);
+    throw error;
+  }
+});
+
+// Add models to group
+ipcMain.handle('add-models-to-group', async (event, groupId, modelIds) => {
+  try {
+    const insertMember = db.prepare(`
+      INSERT OR IGNORE INTO group_members (group_id, model_id)
+      VALUES (?, ?)
+    `);
+
+    const transaction = db.transaction((ids) => {
+      for (const modelId of ids) {
+        insertMember.run(groupId, modelId);
+      }
+    });
+
+    transaction(modelIds);
+    return true;
+  } catch (error) {
+    console.error('Error adding models to group:', error);
+    throw error;
+  }
+});
+
+// Remove models from group
+ipcMain.handle('remove-models-from-group', async (event, groupId, modelIds) => {
+  try {
+    const deleteMember = db.prepare('DELETE FROM group_members WHERE group_id = ? AND model_id = ?');
+
+    const transaction = db.transaction((ids) => {
+      for (const modelId of ids) {
+        deleteMember.run(groupId, modelId);
+      }
+    });
+
+    transaction(modelIds);
+    return true;
+  } catch (error) {
+    console.error('Error removing models from group:', error);
+    throw error;
+  }
+});
+
+// Get groups that a model belongs to
+ipcMain.handle('get-model-groups-for-model', async (event, modelId) => {
+  try {
+    return db.prepare(`
+      SELECT g.* FROM model_groups g
+      JOIN group_members gm ON g.id = gm.group_id
+      WHERE gm.model_id = ?
+    `).all(modelId);
+  } catch (error) {
+    console.error('Error getting groups for model:', error);
+    throw error;
+  }
+});
+
+// Set group thumbnail
+ipcMain.handle('set-group-thumbnail', async (event, groupId, thumbnail) => {
+  try {
+    db.prepare('UPDATE model_groups SET thumbnail = ?, updated_at = datetime("now") WHERE id = ?')
+      .run(thumbnail, groupId);
+    return true;
+  } catch (error) {
+    console.error('Error setting group thumbnail:', error);
+    throw error;
+  }
+});
+
+// Add tags to group
+ipcMain.handle('add-tags-to-group', async (event, groupId, tagIds) => {
+  try {
+    const insertTag = db.prepare(`
+      INSERT OR IGNORE INTO group_tags (group_id, tag_id)
+      VALUES (?, ?)
+    `);
+
+    const transaction = db.transaction((ids) => {
+      for (const tagId of ids) {
+        insertTag.run(groupId, tagId);
+      }
+    });
+
+    transaction(tagIds);
+    return true;
+  } catch (error) {
+    console.error('Error adding tags to group:', error);
+    throw error;
+  }
+});
+
+// Remove tags from group
+ipcMain.handle('remove-tags-from-group', async (event, groupId, tagIds) => {
+  try {
+    const deleteTag = db.prepare('DELETE FROM group_tags WHERE group_id = ? AND tag_id = ?');
+
+    const transaction = db.transaction((ids) => {
+      for (const tagId of ids) {
+        deleteTag.run(groupId, tagId);
+      }
+    });
+
+    transaction(tagIds);
+    return true;
+  } catch (error) {
+    console.error('Error removing tags from group:', error);
+    throw error;
+  }
+});
+
+// Get all tags for a group
+ipcMain.handle('get-group-tags', async (event, groupId) => {
+  try {
+    return db.prepare(`
+      SELECT t.* FROM tags t
+      JOIN group_tags gt ON t.id = gt.tag_id
+      WHERE gt.group_id = ?
+      ORDER BY t.name
+    `).all(groupId);
+  } catch (error) {
+    console.error('Error getting group tags:', error);
+    throw error;
+  }
+});
+
+// Search across all levels (models, groups, hierarchical)
+ipcMain.handle('search-all-levels', async (event, searchParams) => {
+  try {
+    const { searchTerm, tagId, includeGroups, includeModels } = searchParams;
+    const results = { models: [], groups: [] };
+
+    // Search models
+    if (includeModels !== false) {
+      let modelQuery = `
+        SELECT DISTINCT m.* FROM models m
+        LEFT JOIN model_tags mt ON m.id = mt.model_id
+        LEFT JOIN group_members gm ON m.id = gm.model_id
+        LEFT JOIN model_groups g ON gm.group_id = g.id
+        LEFT JOIN group_tags gt ON g.id = gt.group_id
+        WHERE 1=1
+      `;
+      const modelParams = [];
+
+      if (searchTerm) {
+        modelQuery += ` AND (m.fileName LIKE ? OR m.designer LIKE ? OR m.notes LIKE ?)`;
+        modelParams.push(`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`);
+      }
+
+      if (tagId) {
+        // Search for tag in model tags OR in any group the model belongs to
+        modelQuery += ` AND (mt.tag_id = ? OR gt.tag_id = ?)`;
+        modelParams.push(tagId, tagId);
+      }
+
+      results.models = db.prepare(modelQuery).all(...modelParams);
+    }
+
+    // Search groups
+    if (includeGroups !== false) {
+      let groupQuery = `
+        SELECT DISTINCT g.*, 
+               COUNT(DISTINCT gm.model_id) as model_count,
+               (SELECT GROUP_CONCAT(t.name, ', ') 
+                FROM group_tags gt2 
+                JOIN tags t ON gt2.tag_id = t.id 
+                WHERE gt2.group_id = g.id) as tag_names
+        FROM model_groups g
+        LEFT JOIN group_tags gt ON g.id = gt.group_id
+        LEFT JOIN group_members gm ON g.id = gm.group_id
+        WHERE 1=1
+      `;
+      const groupParams = [];
+
+      if (searchTerm) {
+        groupQuery += ` AND (g.name LIKE ? OR g.description LIKE ?)`;
+        groupParams.push(`%${searchTerm}%`, `%${searchTerm}%`);
+      }
+
+      if (tagId) {
+        groupQuery += ` AND gt.tag_id = ?`;
+        groupParams.push(tagId);
+      }
+
+      groupQuery += ` GROUP BY g.id`;
+
+      results.groups = db.prepare(groupQuery).all(...groupParams);
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error searching all levels:', error);
+    throw error;
+  }
+});
+
+// Get tag hierarchy (all models and groups with a specific tag)
+ipcMain.handle('get-tag-hierarchy', async (event, tagId) => {
+  try {
+    const tag = db.prepare('SELECT * FROM tags WHERE id = ?').get(tagId);
+    if (!tag) return null;
+
+    // Get all models with this tag (directly or through groups)
+    const models = db.prepare(`
+      SELECT DISTINCT m.* FROM models m
+      LEFT JOIN model_tags mt ON m.id = mt.model_id
+      LEFT JOIN group_members gm ON m.id = gm.model_id
+      LEFT JOIN group_tags gt ON gm.group_id = gt.group_id
+      WHERE mt.tag_id = ? OR gt.tag_id = ?
+    `).all(tagId, tagId);
+
+    // Get all groups with this tag
+    const groups = db.prepare(`
+      SELECT g.*, COUNT(DISTINCT gm.model_id) as model_count
+      FROM model_groups g
+      JOIN group_tags gt ON g.id = gt.group_id
+      LEFT JOIN group_members gm ON g.id = gm.group_id
+      WHERE gt.tag_id = ?
+      GROUP BY g.id
+    `).all(tagId);
+
+    return {
+      tag,
+      models,
+      groups,
+      totalModels: models.length,
+      totalGroups: groups.length
+    };
+  } catch (error) {
+    console.error('Error getting tag hierarchy:', error);
     throw error;
   }
 });

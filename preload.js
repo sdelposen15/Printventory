@@ -257,6 +257,24 @@ contextBridge.exposeInMainWorld('electron', {
   // FEATURE 4: Statistics Dashboard
   getStatistics: () => ipcRenderer.invoke('get-statistics'),
   onOpenStatistics: (callback) => ipcRenderer.on('open-statistics', callback)
+
+  // FEATURE 11: Model Groups (Folders) with Images and Tags
+  getModelGroups: () => ipcRenderer.invoke('get-model-groups'),
+  getModelGroup: (id) => ipcRenderer.invoke('get-model-group', id),
+  createModelGroup: (data) => ipcRenderer.invoke('create-model-group', data),
+  updateModelGroup: (id, data) => ipcRenderer.invoke('update-model-group', id, data),
+  deleteModelGroup: (id) => ipcRenderer.invoke('delete-model-group', id),
+  addModelsToGroup: (groupId, modelIds) => ipcRenderer.invoke('add-models-to-group', groupId, modelIds),
+  removeModelsFromGroup: (groupId, modelIds) => ipcRenderer.invoke('remove-models-from-group', groupId, modelIds),
+  getModelGroupsForModel: (modelId) => ipcRenderer.invoke('get-model-groups-for-model', modelId),
+  setGroupThumbnail: (groupId, thumbnail) => ipcRenderer.invoke('set-group-thumbnail', groupId, thumbnail),
+  addTagsToGroup: (groupId, tagIds) => ipcRenderer.invoke('add-tags-to-group', groupId, tagIds),
+  removeTagsFromGroup: (groupId, tagIds) => ipcRenderer.invoke('remove-tags-from-group', groupId, tagIds),
+  getGroupTags: (groupId) => ipcRenderer.invoke('get-group-tags', groupId),
+  searchAllLevels: (searchParams) => ipcRenderer.invoke('search-all-levels', searchParams),
+  getTagHierarchy: (tagId) => ipcRenderer.invoke('get-tag-hierarchy', tagId),
+  onOpenGroupManager: (callback) => ipcRenderer.on('open-group-manager', callback),
+  onCreateGroupFromSelection: (callback) => ipcRenderer.on('create-group-from-selection', callback)
 });
 
 contextBridge.exposeInMainWorld('electronAPI', {
