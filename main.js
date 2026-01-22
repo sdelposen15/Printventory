@@ -1176,7 +1176,336 @@ function initializeDatabase() {
           name TEXT NOT NULL,
           path TEXT NOT NULL
       )`).run();
-      
+
+      // FEATURE 1: Smart Collections table
+      db.prepare(`CREATE TABLE IF NOT EXISTS smart_collections (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          description TEXT,
+          rules TEXT NOT NULL,
+          icon TEXT,
+          color TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
+      // FEATURE 2: File watcher tracked directories
+      db.prepare(`CREATE TABLE IF NOT EXISTS watched_directories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          path TEXT NOT NULL UNIQUE,
+          enabled INTEGER DEFAULT 1,
+          last_scan DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
+      // FEATURE 3: Print Queue table
+      db.prepare(`CREATE TABLE IF NOT EXISTS print_queue (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          position INTEGER NOT NULL,
+          priority TEXT DEFAULT 'normal',
+          notes TEXT,
+          estimated_time INTEGER,
+          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 3: Print History table
+      db.prepare(`CREATE TABLE IF NOT EXISTS print_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          print_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          duration INTEGER,
+          material_used REAL,
+          success INTEGER DEFAULT 1,
+          notes TEXT,
+          rating INTEGER,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 4: Recent models (history tracking)
+      db.prepare(`CREATE TABLE IF NOT EXISTS recent_models (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 5: Favorites/Bookmarks table
+      db.prepare(`CREATE TABLE IF NOT EXISTS favorites (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL UNIQUE,
+          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          notes TEXT,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 6: Custom metadata fields definition
+      db.prepare(`CREATE TABLE IF NOT EXISTS custom_fields (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          type TEXT NOT NULL,
+          default_value TEXT,
+          options TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
+      // FEATURE 6: Custom metadata field values
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_custom_fields (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          field_id INTEGER NOT NULL,
+          value TEXT,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,
+          FOREIGN KEY(field_id) REFERENCES custom_fields(id) ON DELETE CASCADE,
+          UNIQUE(model_id, field_id)
+      )`).run();
+
+      // FEATURE 10: Saved searches table
+      db.prepare(`CREATE TABLE IF NOT EXISTS saved_searches (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          filters TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_used DATETIME
+      )`).run();
+
+      // FEATURE 9: Collection export/import metadata
+      db.prepare(`CREATE TABLE IF NOT EXISTS collection_exports (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          model_count INTEGER,
+          export_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          file_path TEXT
+      )`).run();
+
+      // FEATURE 11: Model Groups (Folders)
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_groups (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          description TEXT,
+          thumbnail TEXT,
+          parent_group_id INTEGER,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(parent_group_id) REFERENCES model_groups(id) ON DELETE CASCADE
+      )`).run();
+
+      // FEATURE 11: Group membership junction table
+      db.prepare(`CREATE TABLE IF NOT EXISTS group_members (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          group_id INTEGER NOT NULL,
+          model_id INTEGER NOT NULL,
+          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(group_id) REFERENCES model_groups(id) ON DELETE CASCADE,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,
+          UNIQUE(group_id, model_id)
+      )`).run();
+
+      // FEATURE 11: Group tags (tags can be assigned to groups)
+      db.prepare(`CREATE TABLE IF NOT EXISTS group_tags (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          group_id INTEGER NOT NULL,
+          tag_id INTEGER NOT NULL,
+          FOREIGN KEY(group_id) REFERENCES model_groups(id) ON DELETE CASCADE,
+          FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+          UNIQUE(group_id, tag_id)
+      )`).run();
+
+      // ================================================================
+      // FEATURE 12: Filament Inventory System
+      // ================================================================
+      db.prepare(`CREATE TABLE IF NOT EXISTS filament_spools (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          brand TEXT NOT NULL,
+          material_type TEXT NOT NULL,
+          color TEXT NOT NULL,
+          weight_total INTEGER,
+          weight_remaining INTEGER,
+          cost REAL,
+          purchase_date DATE,
+          spool_diameter REAL,
+          filament_diameter REAL DEFAULT 1.75,
+          notes TEXT,
+          barcode TEXT UNIQUE,
+          location TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS filament_usage (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          print_history_id INTEGER,
+          spool_id INTEGER NOT NULL,
+          weight_used REAL NOT NULL,
+          used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(print_history_id) REFERENCES print_history(id) ON DELETE SET NULL,
+          FOREIGN KEY(spool_id) REFERENCES filament_spools(id) ON DELETE CASCADE
+      )`).run();
+
+      // ================================================================
+      // FEATURE 13: Enhanced Cost Tracking
+      // ================================================================
+      db.prepare(`CREATE TABLE IF NOT EXISTS cost_settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          electricity_rate REAL DEFAULT 0.12,
+          currency TEXT DEFAULT 'USD',
+          printer_wattage INTEGER DEFAULT 200,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS print_costs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          print_history_id INTEGER NOT NULL,
+          filament_cost REAL DEFAULT 0,
+          electricity_cost REAL DEFAULT 0,
+          total_cost REAL DEFAULT 0,
+          calculated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(print_history_id) REFERENCES print_history(id) ON DELETE CASCADE
+      )`).run();
+
+      // ================================================================
+      // FEATURE 14: Enhanced Slicer Integration
+      // ================================================================
+      db.prepare(`CREATE TABLE IF NOT EXISTS slicer_profiles (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          slicer_id INTEGER,
+          profile_path TEXT,
+          quality TEXT,
+          material_type TEXT,
+          layer_height REAL,
+          infill_percentage INTEGER,
+          supports INTEGER DEFAULT 0,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(slicer_id) REFERENCES slicers(id) ON DELETE CASCADE
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_slicer_settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          profile_id INTEGER,
+          last_used_profile INTEGER,
+          gcode_path TEXT,
+          estimated_time INTEGER,
+          estimated_filament REAL,
+          last_sliced DATETIME,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,
+          FOREIGN KEY(profile_id) REFERENCES slicer_profiles(id) ON DELETE SET NULL,
+          UNIQUE(model_id)
+      )`).run();
+
+      // ================================================================
+      // FEATURE 15: Print Scheduling & Calendar
+      // ================================================================
+      db.prepare(`CREATE TABLE IF NOT EXISTS scheduled_prints (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          scheduled_date DATE NOT NULL,
+          deadline DATE,
+          priority TEXT DEFAULT 'normal',
+          status TEXT DEFAULT 'pending',
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          completed_at DATETIME,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS print_projects (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          deadline DATE,
+          status TEXT DEFAULT 'active',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          completed_at DATETIME
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS project_models (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL,
+          model_id INTEGER NOT NULL,
+          quantity INTEGER DEFAULT 1,
+          printed_quantity INTEGER DEFAULT 0,
+          notes TEXT,
+          FOREIGN KEY(project_id) REFERENCES print_projects(id) ON DELETE CASCADE,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,
+          UNIQUE(project_id, model_id)
+      )`).run();
+
+      // ================================================================
+      // FEATURE 16: Community Platform Integration
+      // ================================================================
+      db.prepare(`CREATE TABLE IF NOT EXISTS community_sources (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          base_url TEXT NOT NULL,
+          api_key TEXT,
+          enabled INTEGER DEFAULT 1
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_sources (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          source_id INTEGER,
+          source_url TEXT,
+          source_model_id TEXT,
+          downloaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_checked DATETIME,
+          has_update INTEGER DEFAULT 0,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE,
+          FOREIGN KEY(source_id) REFERENCES community_sources(id) ON DELETE SET NULL
+      )`).run();
+
+      // ================================================================
+      // FEATURE 17: Model Version Control
+      // ================================================================
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_versions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          version_number INTEGER NOT NULL,
+          file_path TEXT NOT NULL,
+          thumbnail TEXT,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          is_current INTEGER DEFAULT 0,
+          FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_comparisons (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          version1_id INTEGER NOT NULL,
+          version2_id INTEGER NOT NULL,
+          diff_summary TEXT,
+          compared_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(version1_id) REFERENCES model_versions(id) ON DELETE CASCADE,
+          FOREIGN KEY(version2_id) REFERENCES model_versions(id) ON DELETE CASCADE
+      )`).run();
+
+      // ================================================================
+      // FEATURE 18: Smart Recommendations
+      // ================================================================
+      db.prepare(`CREATE TABLE IF NOT EXISTS model_associations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_a_id INTEGER NOT NULL,
+          model_b_id INTEGER NOT NULL,
+          association_score REAL DEFAULT 1.0,
+          association_type TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY(model_a_id) REFERENCES models(id) ON DELETE CASCADE,
+          FOREIGN KEY(model_b_id) REFERENCES models(id) ON DELETE CASCADE,
+          UNIQUE(model_a_id, model_b_id)
+      )`).run();
+
+      db.prepare(`CREATE TABLE IF NOT EXISTS user_preferences (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          preference_key TEXT UNIQUE NOT NULL,
+          preference_value TEXT,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`).run();
+
       // Create indexes for better performance
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_filepath ON models(filePath)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_filename ON models(fileName)').run();
@@ -1199,26 +1528,71 @@ function initializeDatabase() {
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_license_modifieddate ON models(license, modifiedDate)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_printed_modifieddate ON models(printed, modifiedDate)').run();
       db.prepare('CREATE INDEX IF NOT EXISTS idx_models_parentmodel_modifieddate ON models(parentModel, modifiedDate)').run();
+
+      // Indexes for new feature tables
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_queue_position ON print_queue(position)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_queue_model_id ON print_queue(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_history_model_id ON print_history(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_history_date ON print_history(print_date)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_recent_models_model_id ON recent_models(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_recent_models_accessed ON recent_models(accessed_at)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_favorites_model_id ON favorites(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_custom_fields_model ON model_custom_fields(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_custom_fields_field ON model_custom_fields(field_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_saved_searches_name ON saved_searches(name)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_watched_directories_path ON watched_directories(path)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_groups_name ON model_groups(name)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_groups_parent ON model_groups(parent_group_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_group_members_model ON group_members(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_group_tags_group ON group_tags(group_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_group_tags_tag ON group_tags(tag_id)').run();
+      // Indexes for new advanced features
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_filament_spools_material ON filament_spools(material_type)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_filament_spools_color ON filament_spools(color)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_filament_usage_spool ON filament_usage(spool_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_filament_usage_print ON filament_usage(print_history_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_print_costs_history ON print_costs(print_history_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_slicer_profiles_slicer ON slicer_profiles(slicer_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_slicer_profiles_quality ON slicer_profiles(quality)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_slicer_settings_model ON model_slicer_settings(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_scheduled_prints_date ON scheduled_prints(scheduled_date)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_scheduled_prints_model ON scheduled_prints(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_scheduled_prints_status ON scheduled_prints(status)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_project_models_project ON project_models(project_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_project_models_model ON project_models(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_sources_model ON model_sources(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_sources_source ON model_sources(source_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_versions_model ON model_versions(model_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_versions_current ON model_versions(is_current)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_associations_a ON model_associations(model_a_id)').run();
+      db.prepare('CREATE INDEX IF NOT EXISTS idx_model_associations_b ON model_associations(model_b_id)').run();
     })();
     
     // Migrate existing database: add dateAdded column if it doesn't exist
     // This must run before creating indexes on dateAdded
     migrateDateAddedColumn();
-    
+
     // Create index for dateAdded after migration (in case it was just added)
     db.prepare('CREATE INDEX IF NOT EXISTS idx_models_dateadded ON models(dateAdded)').run();
-    
+
     // Clean up any database objects that reference models_old (from old migrations)
     cleanupModelsOldReferences();
-    
+
     // Repair model_tags table to fix any foreign key issues
     repairModelTagsTable();
-    
+
     // Check and create slicers table if it doesn't exist
     ensureSlicersTableExists();
-    
+
+    // Migrate new feature columns
+    migrateEnhancedFeatureColumns();
+
     // Initialize default settings
     initializeDefaultSettings();
+
+    // Initialize file watcher
+    initializeFileWatcher();
     
     return true;
   } catch (err) {
@@ -1519,11 +1893,115 @@ function createWindow() {
       ]
     },
     {
-      label: 'Tools',
+      label: 'Collections',
       submenu: [
+        {
+          label: 'Smart Collections',
+          click: () => mainWindow.webContents.send('open-smart-collections')
+        },
+        {
+          label: 'Favorites',
+          click: () => mainWindow.webContents.send('open-favorites')
+        },
+        {
+          label: 'Recent Models',
+          click: () => mainWindow.webContents.send('open-recent-models')
+        },
+        { type: 'separator' },
+        {
+          label: 'Saved Searches',
+          click: () => mainWindow.webContents.send('open-saved-searches')
+        },
+        { type: 'separator' },
+        {
+          label: 'Export Collection',
+          click: () => mainWindow.webContents.send('open-collection-export')
+        },
+        {
+          label: 'Import Collection',
+          click: () => mainWindow.webContents.send('open-collection-import')
+        }
+        { type: 'separator' },
+        {
+          label: 'Model Groups',
+          accelerator: 'CmdOrCtrl+Shift+G',
+          click: () => mainWindow.webContents.send('open-group-manager')
+        },
+        {
+          label: 'Create Group from Selection',
+          accelerator: 'CmdOrCtrl+G',
+          click: () => mainWindow.webContents.send('create-group-from-selection')
+        },
+        {
+          label: 'Hierarchical Search',
+          accelerator: 'CmdOrCtrl+Shift+H',
+          click: () => mainWindow.webContents.send('open-hierarchical-search')
+        },
+      ]
+    {
+      label: 'Inventory',
+      submenu: [
+        {
+          label: 'Filament Spools',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => mainWindow.webContents.send('open-filament-inventory')
+        },
+        {
+          label: 'Cost Tracking',
+          accelerator: 'CmdOrCtrl+Shift+C',
+          click: () => mainWindow.webContents.send('open-cost-tracking')
+        },
+        { type: 'separator' },
+        {
+          label: 'Filament Statistics',
+          click: () => mainWindow.webContents.send('open-filament-stats')
+        },
+        {
+          label: 'Low Stock Alert',
+          click: () => mainWindow.webContents.send('show-low-stock')
+        }
+      ]
+    },
+    },
+    {
+      label: 'Print',
+      submenu: [
+        {
+          label: 'Print Queue',
+          click: () => mainWindow.webContents.send('open-print-queue')
+        },
+        {
+          label: 'Print History',
+          click: () => mainWindow.webContents.send('open-print-history')
+        },
+        { type: 'separator' },
         {
           label: 'Print Roulette',
           click: () => mainWindow.webContents.send('start-print-roulette')
+        }
+        { type: 'separator' },
+        {
+          label: 'Print Calendar',
+          accelerator: 'CmdOrCtrl+Shift+P',
+          click: () => mainWindow.webContents.send('open-print-calendar')
+        },
+        {
+          label: 'Projects',
+          click: () => mainWindow.webContents.send('open-print-projects')
+        },
+        { type: 'separator' },
+        {
+          label: 'Slicer Profiles',
+          click: () => mainWindow.webContents.send('open-slicer-profiles')
+        }
+      ]
+    },
+    {
+      label: 'Tools',
+      submenu: [
+        {
+          label: 'Bulk Rename',
+          click: () => mainWindow.webContents.send('open-bulk-rename')
         },
         {
           label: 'De-Dup',
@@ -1541,6 +2019,16 @@ function createWindow() {
           click: () => mainWindow.webContents.send('open-metadata-editor')
         },
         {
+          label: 'Custom Fields',
+          click: () => mainWindow.webContents.send('open-custom-fields')
+        },
+        { type: 'separator' },
+        {
+          label: 'File Watcher',
+          click: () => mainWindow.webContents.send('open-file-watcher')
+        },
+        { type: 'separator' },
+        {
           label: 'Backup/Restore',
           click: () => mainWindow.webContents.send('open-backup-restore')
         },
@@ -1557,12 +2045,55 @@ function createWindow() {
           label: 'Purge Models',
           click: () => mainWindow.webContents.send('open-purge-models')
         }
+        { type: 'separator' },
+        {
+          label: 'Version Control',
+          click: () => mainWindow.webContents.send('open-version-control')
+        },
+        {
+          label: 'Community Platforms',
+          click: () => mainWindow.webContents.send('open-community-sources')
+        }
       ]
     },
     {
       label: 'Help',
       submenu: [
         {
+        {
+          label: 'Welcome Wizard',
+          accelerator: 'F1',
+          click: () => mainWindow.webContents.send('open-welcome-wizard')
+        },
+        {
+          label: 'Feature Tour',
+          click: () => mainWindow.webContents.send('start-feature-tour')
+        },
+        { type: 'separator' },
+        {
+          label: 'Quick Start Guide',
+          click: () => {
+            mainWindow.webContents.send('open-guide');
+          }
+        },
+        {
+          label: 'Video Tutorials',
+          click: async () => {
+            await shell.openExternal('https://printventory.com/tutorials');
+          }
+        },
+        {
+          label: 'Recommendations',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => mainWindow.webContents.send('open-recommendations')
+        },
+        { type: 'separator' },
+        {
+          label: 'Library Stats',
+          click: () => {
+            mainWindow.webContents.send('open-stats');
+          }
+        },
           label: 'Quick Start Guide',
           click: () => {
             mainWindow.webContents.send('open-guide');
@@ -1572,6 +2103,12 @@ function createWindow() {
           label: 'Library Stats',
           click: () => {
             mainWindow.webContents.send('open-stats');
+          }
+        },
+        {
+          label: 'Statistics Dashboard',
+          click: () => {
+            mainWindow.webContents.send('open-statistics');
           }
         },
         {
@@ -1699,11 +2236,100 @@ function createApplicationMenu() {
       ]
     },
     {
-      label: 'Tools',
+      label: 'Collections',
       submenu: [
+        {
+          label: 'Smart Collections',
+          click: () => mainWindow.webContents.send('open-smart-collections')
+        },
+        {
+          label: 'Favorites',
+          click: () => mainWindow.webContents.send('open-favorites')
+        },
+        {
+          label: 'Recent Models',
+          click: () => mainWindow.webContents.send('open-recent-models')
+        },
+        { type: 'separator' },
+        {
+          label: 'Saved Searches',
+          click: () => mainWindow.webContents.send('open-saved-searches')
+        },
+        { type: 'separator' },
+        {
+          label: 'Export Collection',
+          click: () => mainWindow.webContents.send('open-collection-export')
+        },
+        {
+          label: 'Import Collection',
+          click: () => mainWindow.webContents.send('open-collection-import')
+        }
+        { type: 'separator' },
+        {
+          label: 'Model Groups',
+          accelerator: 'CmdOrCtrl+Shift+G',
+          click: () => mainWindow.webContents.send('open-group-manager')
+        },
+        {
+          label: 'Create Group from Selection',
+          accelerator: 'CmdOrCtrl+G',
+          click: () => mainWindow.webContents.send('create-group-from-selection')
+        },
+        {
+          label: 'Hierarchical Search',
+          accelerator: 'CmdOrCtrl+Shift+H',
+          click: () => mainWindow.webContents.send('open-hierarchical-search')
+        },
+      ]
+    },
+    {
+      label: 'Inventory',
+      submenu: [
+        {
+          label: 'Filament Spools',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => mainWindow.webContents.send('open-filament-inventory')
+        },
+        {
+          label: 'Cost Tracking',
+          accelerator: 'CmdOrCtrl+Shift+C',
+          click: () => mainWindow.webContents.send('open-cost-tracking')
+        },
+        { type: 'separator' },
+        {
+          label: 'Filament Statistics',
+          click: () => mainWindow.webContents.send('open-filament-stats')
+        },
+        {
+          label: 'Low Stock Alert',
+          click: () => mainWindow.webContents.send('show-low-stock')
+        }
+      ]
+    },
+    {
+      label: 'Print',
+      submenu: [
+        {
+          label: 'Print Queue',
+          click: () => mainWindow.webContents.send('open-print-queue')
+        },
+        {
+          label: 'Print History',
+          click: () => mainWindow.webContents.send('open-print-history')
+        },
+        { type: 'separator' },
         {
           label: 'Print Roulette',
           click: () => mainWindow.webContents.send('start-print-roulette')
+        }
+      ]
+    },
+    {
+      label: 'Tools',
+      submenu: [
+        {
+          label: 'Bulk Rename',
+          click: () => mainWindow.webContents.send('open-bulk-rename')
         },
         {
           label: 'De-Dup',
@@ -1720,6 +2346,16 @@ function createApplicationMenu() {
           label: 'Metadata Manager',
           click: () => mainWindow.webContents.send('open-metadata-editor')
         },
+        {
+          label: 'Custom Fields',
+          click: () => mainWindow.webContents.send('open-custom-fields')
+        },
+        { type: 'separator' },
+        {
+          label: 'File Watcher',
+          click: () => mainWindow.webContents.send('open-file-watcher')
+        },
+        { type: 'separator' },
         {
           label: 'Backup/Restore',
           click: () => mainWindow.webContents.send('open-backup-restore')
@@ -1752,6 +2388,12 @@ function createApplicationMenu() {
           label: 'Library Stats',
           click: () => {
             mainWindow.webContents.send('open-stats');
+          }
+        },
+        {
+          label: 'Statistics Dashboard',
+          click: () => {
+            mainWindow.webContents.send('open-statistics');
           }
         },
         {
@@ -6927,6 +7569,131 @@ function ensureSlicersTableExists() {
   }
 }
 
+// NEW FEATURES: Migration function for enhanced feature columns
+function migrateEnhancedFeatureColumns() {
+  try {
+    console.log('Migrating enhanced feature columns...');
+
+    // Check if rating column exists
+    const tableInfo = db.prepare("PRAGMA table_info(models)").all();
+    const hasRating = tableInfo.some(col => col.name === 'rating');
+    const hasPrintTime = tableInfo.some(col => col.name === 'printTime');
+    const hasLastAccessed = tableInfo.some(col => col.name === 'lastAccessed');
+
+    if (!hasRating) {
+      console.log('Adding rating column to models table...');
+      db.prepare('ALTER TABLE models ADD COLUMN rating INTEGER DEFAULT 0').run();
+    }
+
+    if (!hasPrintTime) {
+      console.log('Adding printTime column to models table...');
+      db.prepare('ALTER TABLE models ADD COLUMN printTime INTEGER').run();
+    }
+
+    if (!hasLastAccessed) {
+      console.log('Adding lastAccessed column to models table...');
+      db.prepare('ALTER TABLE models ADD COLUMN lastAccessed DATETIME').run();
+    }
+
+    // Create indexes for new columns
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_models_rating ON models(rating)').run();
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_models_last_accessed ON models(lastAccessed)').run();
+
+    console.log('Enhanced feature columns migrated successfully');
+    return true;
+  } catch (error) {
+    console.error('Error migrating enhanced feature columns:', error);
+    return false;
+  }
+}
+
+// FEATURE 2: File Watcher variables
+let fileWatcher = null;
+let watchedDirectories = new Map();
+
+// FEATURE 2: Initialize file watcher
+function initializeFileWatcher() {
+  try {
+    console.log('Initializing file watcher...');
+
+    // Get all enabled watched directories from database
+    const directories = db.prepare('SELECT * FROM watched_directories WHERE enabled = 1').all();
+
+    if (directories.length > 0) {
+      console.log(`Found ${directories.length} watched directories`);
+      // Start watching each directory
+      directories.forEach(dir => {
+        startWatchingDirectory(dir.path, dir.id);
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error initializing file watcher:', error);
+    return false;
+  }
+}
+
+// FEATURE 2: Start watching a directory
+function startWatchingDirectory(dirPath, dirId) {
+  try {
+    if (watchedDirectories.has(dirPath)) {
+      console.log(`Already watching directory: ${dirPath}`);
+      return;
+    }
+
+    // Use fs.watch for directory monitoring
+    const watcher = fs.watch(dirPath, { recursive: true }, (eventType, filename) => {
+      if (filename && (filename.endsWith('.stl') || filename.endsWith('.3mf'))) {
+        console.log(`File watcher detected change: ${eventType} - ${filename}`);
+
+        // Debounce the scan to avoid multiple rapid scans
+        clearTimeout(watchedDirectories.get(dirPath).timeout);
+        watchedDirectories.get(dirPath).timeout = setTimeout(() => {
+          console.log(`Scanning directory ${dirPath} due to file change...`);
+          scanDirectoryFromWatcher(dirPath, dirId);
+        }, 5000); // Wait 5 seconds after last change before scanning
+      }
+    });
+
+    watchedDirectories.set(dirPath, { watcher, timeout: null, dirId });
+    console.log(`Started watching directory: ${dirPath}`);
+  } catch (error) {
+    console.error(`Error watching directory ${dirPath}:`, error);
+  }
+}
+
+// FEATURE 2: Stop watching a directory
+function stopWatchingDirectory(dirPath) {
+  try {
+    if (watchedDirectories.has(dirPath)) {
+      const { watcher, timeout } = watchedDirectories.get(dirPath);
+      if (timeout) clearTimeout(timeout);
+      if (watcher) watcher.close();
+      watchedDirectories.delete(dirPath);
+      console.log(`Stopped watching directory: ${dirPath}`);
+    }
+  } catch (error) {
+    console.error(`Error stopping watch on directory ${dirPath}:`, error);
+  }
+}
+
+// FEATURE 2: Scan directory from file watcher
+async function scanDirectoryFromWatcher(dirPath, dirId) {
+  try {
+    // Update last scan time
+    db.prepare('UPDATE watched_directories SET last_scan = datetime("now") WHERE id = ?').run(dirId);
+
+    // Trigger a scan
+    // Note: This reuses the existing scan logic
+    if (mainWindow) {
+      mainWindow.webContents.send('file-watcher-scan', dirPath);
+    }
+  } catch (error) {
+    console.error('Error scanning from file watcher:', error);
+  }
+}
+
 // Add this function to get or create a persistent client ID
 function getClientId() {
   try {
@@ -6973,5 +7740,2261 @@ ipcMain.handle('check-collect-usage', async (event) => {
   } catch (error) {
     console.error('Error checking CollectUsage setting:', error);
     return null;
+  }
+});
+
+// ========================================================================
+// NEW FEATURES: IPC Handlers for Enhanced Functionality
+// ========================================================================
+
+// FEATURE 1: Smart Collections
+ipcMain.handle('get-smart-collections', async () => {
+  try {
+    return db.prepare('SELECT * FROM smart_collections ORDER BY name').all();
+  } catch (error) {
+    console.error('Error getting smart collections:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-smart-collection', async (event, id) => {
+  try {
+    return db.prepare('SELECT * FROM smart_collections WHERE id = ?').get(id);
+  } catch (error) {
+    console.error('Error getting smart collection:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-smart-collection', async (event, collection) => {
+  try {
+    const { name, description, rules, icon, color } = collection;
+    const rulesJson = JSON.stringify(rules);
+
+    if (collection.id) {
+      // Update existing
+      db.prepare(`
+        UPDATE smart_collections
+        SET name = ?, description = ?, rules = ?, icon = ?, color = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).run(name, description, rulesJson, icon, color, collection.id);
+      return collection.id;
+    } else {
+      // Insert new
+      const result = db.prepare(`
+        INSERT INTO smart_collections (name, description, rules, icon, color)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(name, description, rulesJson, icon, color);
+      return result.lastInsertRowid;
+    }
+  } catch (error) {
+    console.error('Error saving smart collection:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-smart-collection', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM smart_collections WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting smart collection:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-smart-collection-models', async (event, id) => {
+  try {
+    const collection = db.prepare('SELECT * FROM smart_collections WHERE id = ?').get(id);
+    if (!collection) return [];
+
+    const rules = JSON.parse(collection.rules);
+    // Build dynamic query based on rules
+    const { conditions, params } = buildSmartCollectionQuery(rules);
+
+    let query = 'SELECT * FROM models';
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    query += ' ORDER BY fileName';
+
+    return db.prepare(query).all(...params);
+  } catch (error) {
+    console.error('Error getting smart collection models:', error);
+    throw error;
+  }
+});
+
+// Helper function to build smart collection queries
+function buildSmartCollectionQuery(rules) {
+  const conditions = [];
+  const params = [];
+
+  rules.forEach(rule => {
+    const { field, operator, value } = rule;
+
+    switch (operator) {
+      case 'equals':
+        conditions.push(`${field} = ?`);
+        params.push(value);
+        break;
+      case 'contains':
+        conditions.push(`${field} LIKE ?`);
+        params.push(`%${value}%`);
+        break;
+      case 'startsWith':
+        conditions.push(`${field} LIKE ?`);
+        params.push(`${value}%`);
+        break;
+      case 'greaterThan':
+        conditions.push(`${field} > ?`);
+        params.push(value);
+        break;
+      case 'lessThan':
+        conditions.push(`${field} < ?`);
+        params.push(value);
+        break;
+      case 'isEmpty':
+        conditions.push(`(${field} IS NULL OR ${field} = '')`);
+        break;
+      case 'isNotEmpty':
+        conditions.push(`${field} IS NOT NULL AND ${field} != ''`);
+        break;
+    }
+  });
+
+  return { conditions, params };
+}
+
+// FEATURE 2: File Watcher
+ipcMain.handle('get-watched-directories', async () => {
+  try {
+    return db.prepare('SELECT * FROM watched_directories ORDER BY path').all();
+  } catch (error) {
+    console.error('Error getting watched directories:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-watched-directory', async (event, path) => {
+  try {
+    const result = db.prepare(`
+      INSERT INTO watched_directories (path, enabled)
+      VALUES (?, 1)
+    `).run(path);
+
+    // Start watching the directory
+    startWatchingDirectory(path, result.lastInsertRowid);
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error adding watched directory:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('remove-watched-directory', async (event, id) => {
+  try {
+    const dir = db.prepare('SELECT path FROM watched_directories WHERE id = ?').get(id);
+    if (dir) {
+      stopWatchingDirectory(dir.path);
+    }
+    db.prepare('DELETE FROM watched_directories WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error removing watched directory:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('toggle-watched-directory', async (event, id, enabled) => {
+  try {
+    db.prepare('UPDATE watched_directories SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+
+    const dir = db.prepare('SELECT path FROM watched_directories WHERE id = ?').get(id);
+    if (dir) {
+      if (enabled) {
+        startWatchingDirectory(dir.path, id);
+      } else {
+        stopWatchingDirectory(dir.path);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error toggling watched directory:', error);
+    throw error;
+  }
+});
+
+// FEATURE 3: Print Queue & History
+ipcMain.handle('get-print-queue', async () => {
+  try {
+    return db.prepare(`
+      SELECT pq.*, m.fileName, m.thumbnail, m.filePath, m.designer
+      FROM print_queue pq
+      JOIN models m ON pq.model_id = m.id
+      ORDER BY pq.position
+    `).all();
+  } catch (error) {
+    console.error('Error getting print queue:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-to-print-queue', async (event, modelId, priority = 'normal', notes = '') => {
+  try {
+    // Get the max position
+    const maxPos = db.prepare('SELECT MAX(position) as max FROM print_queue').get();
+    const position = (maxPos.max || 0) + 1;
+
+    const result = db.prepare(`
+      INSERT INTO print_queue (model_id, position, priority, notes)
+      VALUES (?, ?, ?, ?)
+    `).run(modelId, position, priority, notes);
+
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error adding to print queue:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('remove-from-print-queue', async (event, id) => {
+  try {
+    // Get the position of the item being removed
+    const item = db.prepare('SELECT position FROM print_queue WHERE id = ?').get(id);
+
+    // Delete the item
+    db.prepare('DELETE FROM print_queue WHERE id = ?').run(id);
+
+    // Reorder remaining items
+    if (item) {
+      db.prepare('UPDATE print_queue SET position = position - 1 WHERE position > ?').run(item.position);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error removing from print queue:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('reorder-print-queue', async (event, items) => {
+  try {
+    db.transaction(() => {
+      items.forEach((item, index) => {
+        db.prepare('UPDATE print_queue SET position = ? WHERE id = ?').run(index + 1, item.id);
+      });
+    })();
+    return true;
+  } catch (error) {
+    console.error('Error reordering print queue:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-print-history', async (event, modelId = null) => {
+  try {
+    if (modelId) {
+      return db.prepare(`
+        SELECT ph.*, m.fileName, m.thumbnail
+        FROM print_history ph
+        JOIN models m ON ph.model_id = m.id
+        WHERE ph.model_id = ?
+        ORDER BY ph.print_date DESC
+      `).all(modelId);
+    } else {
+      return db.prepare(`
+        SELECT ph.*, m.fileName, m.thumbnail, m.filePath, m.designer
+        FROM print_history ph
+        JOIN models m ON ph.model_id = m.id
+        ORDER BY ph.print_date DESC
+        LIMIT 100
+      `).all();
+    }
+  } catch (error) {
+    console.error('Error getting print history:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-to-print-history', async (event, data) => {
+  try {
+    const { modelId, duration, materialUsed, success, notes, rating } = data;
+    const result = db.prepare(`
+      INSERT INTO print_history (model_id, duration, material_used, success, notes, rating)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(modelId, duration, materialUsed, success ? 1 : 0, notes, rating);
+
+    // Update model's printed status
+    db.prepare('UPDATE models SET printed = 1 WHERE id = ?').run(modelId);
+
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error adding to print history:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('mark-as-printed', async (event, modelId) => {
+  try {
+    // Add to print history
+    db.prepare(`
+      INSERT INTO print_history (model_id, success)
+      VALUES (?, 1)
+    `).run(modelId);
+
+    // Update model
+    db.prepare('UPDATE models SET printed = 1 WHERE id = ?').run(modelId);
+
+    return true;
+  } catch (error) {
+    console.error('Error marking as printed:', error);
+    throw error;
+  }
+});
+
+// FEATURE 4: Recent Models (History)
+ipcMain.handle('get-recent-models', async (event, limit = 20) => {
+  try {
+    return db.prepare(`
+      SELECT DISTINCT m.*, rm.accessed_at
+      FROM models m
+      JOIN recent_models rm ON m.id = rm.model_id
+      ORDER BY rm.accessed_at DESC
+      LIMIT ?
+    `).all(limit);
+  } catch (error) {
+    console.error('Error getting recent models:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-to-recent', async (event, modelId) => {
+  try {
+    // Add to recent models
+    db.prepare(`
+      INSERT INTO recent_models (model_id, accessed_at)
+      VALUES (?, datetime('now'))
+    `).run(modelId);
+
+    // Update lastAccessed in models table
+    db.prepare('UPDATE models SET lastAccessed = datetime("now") WHERE id = ?').run(modelId);
+
+    // Keep only last 100 recent models
+    db.prepare(`
+      DELETE FROM recent_models
+      WHERE id NOT IN (
+        SELECT id FROM recent_models
+        ORDER BY accessed_at DESC
+        LIMIT 100
+      )
+    `).run();
+
+    return true;
+  } catch (error) {
+    console.error('Error adding to recent:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('clear-recent-models', async () => {
+  try {
+    db.prepare('DELETE FROM recent_models').run();
+    return true;
+  } catch (error) {
+    console.error('Error clearing recent models:', error);
+    throw error;
+  }
+});
+
+// FEATURE 5: Favorites/Bookmarks
+ipcMain.handle('get-favorites', async () => {
+  try {
+    return db.prepare(`
+      SELECT m.*, f.added_at, f.notes as favorite_notes
+      FROM models m
+      JOIN favorites f ON m.id = f.model_id
+      ORDER BY f.added_at DESC
+    `).all();
+  } catch (error) {
+    console.error('Error getting favorites:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('add-to-favorites', async (event, modelId, notes = '') => {
+  try {
+    db.prepare(`
+      INSERT INTO favorites (model_id, notes)
+      VALUES (?, ?)
+      ON CONFLICT(model_id) DO UPDATE SET added_at = datetime('now'), notes = ?
+    `).run(modelId, notes, notes);
+    return true;
+  } catch (error) {
+    console.error('Error adding to favorites:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('remove-from-favorites', async (event, modelId) => {
+  try {
+    db.prepare('DELETE FROM favorites WHERE model_id = ?').run(modelId);
+    return true;
+  } catch (error) {
+    console.error('Error removing from favorites:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('is-favorite', async (event, modelId) => {
+  try {
+    const result = db.prepare('SELECT id FROM favorites WHERE model_id = ?').get(modelId);
+    return !!result;
+  } catch (error) {
+    console.error('Error checking favorite status:', error);
+    return false;
+  }
+});
+
+// FEATURE 6: Custom Metadata Fields
+ipcMain.handle('get-custom-fields', async () => {
+  try {
+    return db.prepare('SELECT * FROM custom_fields ORDER BY name').all();
+  } catch (error) {
+    console.error('Error getting custom fields:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-custom-field', async (event, field) => {
+  try {
+    const { name, type, defaultValue, options } = field;
+    const optionsJson = options ? JSON.stringify(options) : null;
+
+    if (field.id) {
+      db.prepare(`
+        UPDATE custom_fields
+        SET name = ?, type = ?, default_value = ?, options = ?
+        WHERE id = ?
+      `).run(name, type, defaultValue, optionsJson, field.id);
+      return field.id;
+    } else {
+      const result = db.prepare(`
+        INSERT INTO custom_fields (name, type, default_value, options)
+        VALUES (?, ?, ?, ?)
+      `).run(name, type, defaultValue, optionsJson);
+      return result.lastInsertRowid;
+    }
+  } catch (error) {
+    console.error('Error saving custom field:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-custom-field', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM custom_fields WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting custom field:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-model-custom-fields', async (event, modelId) => {
+  try {
+    return db.prepare(`
+      SELECT mcf.*, cf.name, cf.type, cf.options
+      FROM model_custom_fields mcf
+      JOIN custom_fields cf ON mcf.field_id = cf.id
+      WHERE mcf.model_id = ?
+    `).all(modelId);
+  } catch (error) {
+    console.error('Error getting model custom fields:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-model-custom-field', async (event, modelId, fieldId, value) => {
+  try {
+    db.prepare(`
+      INSERT INTO model_custom_fields (model_id, field_id, value)
+      VALUES (?, ?, ?)
+      ON CONFLICT(model_id, field_id) DO UPDATE SET value = ?
+    `).run(modelId, fieldId, value, value);
+    return true;
+  } catch (error) {
+    console.error('Error saving model custom field:', error);
+    throw error;
+  }
+});
+
+// FEATURE 7: Bulk Rename Tool
+ipcMain.handle('bulk-rename-models', async (event, models, pattern) => {
+  try {
+    const results = [];
+
+    for (const model of models) {
+      try {
+        const oldPath = model.filePath;
+        const dir = path.dirname(oldPath);
+        const ext = path.extname(oldPath);
+
+        // Replace pattern variables
+        let newName = pattern
+          .replace(/{designer}/g, model.designer || 'Unknown')
+          .replace(/{original}/g, model.fileName.replace(ext, ''))
+          .replace(/{index}/g, models.indexOf(model) + 1)
+          .replace(/{date}/g, new Date().toISOString().split('T')[0]);
+
+        const newPath = path.join(dir, newName + ext);
+
+        // Rename file
+        fs.renameSync(oldPath, newPath);
+
+        // Update database
+        db.prepare('UPDATE models SET filePath = ?, fileName = ? WHERE id = ?')
+          .run(newPath, newName + ext, model.id);
+
+        results.push({ success: true, oldPath, newPath });
+      } catch (error) {
+        results.push({ success: false, oldPath: model.filePath, error: error.message });
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error bulk renaming models:', error);
+    throw error;
+  }
+});
+
+// FEATURE 9: Collection Export/Import
+ipcMain.handle('export-collection', async (event, options) => {
+  try {
+    const { name, description, modelIds, includeFiles, exportPath } = options;
+
+    // Get models
+    const placeholders = modelIds.map(() => '?').join(',');
+    const models = db.prepare(`SELECT * FROM models WHERE id IN (${placeholders})`).all(...modelIds);
+
+    // Get tags for each model
+    for (const model of models) {
+      const tags = db.prepare(`
+        SELECT t.name
+        FROM tags t
+        JOIN model_tags mt ON t.id = mt.tag_id
+        WHERE mt.model_id = ?
+      `).all(model.id);
+      model.tags = tags.map(t => t.name);
+    }
+
+    // Create export data
+    const exportData = {
+      name,
+      description,
+      exportDate: new Date().toISOString(),
+      version: '1.0',
+      modelCount: models.length,
+      models: models.map(m => ({
+        fileName: m.fileName,
+        designer: m.designer,
+        source: m.source,
+        notes: m.notes,
+        printed: m.printed,
+        license: m.license,
+        tags: m.tags,
+        parentModel: m.parentModel,
+        rating: m.rating,
+        printTime: m.printTime
+      }))
+    };
+
+    // Write to file
+    const metadataPath = path.join(exportPath, 'collection.json');
+    fs.writeFileSync(metadataPath, JSON.stringify(exportData, null, 2));
+
+    // Record export
+    db.prepare(`
+      INSERT INTO collection_exports (name, description, model_count, file_path)
+      VALUES (?, ?, ?, ?)
+    `).run(name, description, models.length, exportPath);
+
+    return { success: true, path: exportPath };
+  } catch (error) {
+    console.error('Error exporting collection:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('import-collection', async (event, filePath) => {
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const imported = [];
+    const errors = [];
+
+    for (const modelData of data.models) {
+      try {
+        // Check if model exists by filename
+        const existing = db.prepare('SELECT id FROM models WHERE fileName = ?').get(modelData.fileName);
+
+        if (existing) {
+          // Update metadata only
+          db.prepare(`
+            UPDATE models
+            SET designer = ?, source = ?, notes = ?, license = ?, parentModel = ?, rating = ?, printTime = ?
+            WHERE id = ?
+          `).run(
+            modelData.designer,
+            modelData.source,
+            modelData.notes,
+            modelData.license,
+            modelData.parentModel,
+            modelData.rating,
+            modelData.printTime,
+            existing.id
+          );
+
+          // Import tags
+          if (modelData.tags) {
+            for (const tagName of modelData.tags) {
+              db.prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)').run(tagName);
+              const tag = db.prepare('SELECT id FROM tags WHERE name = ?').get(tagName);
+              db.prepare('INSERT OR IGNORE INTO model_tags (model_id, tag_id) VALUES (?, ?)')
+                .run(existing.id, tag.id);
+            }
+          }
+
+          imported.push(modelData.fileName);
+        } else {
+          errors.push({ file: modelData.fileName, error: 'File not found in library' });
+        }
+      } catch (error) {
+        errors.push({ file: modelData.fileName, error: error.message });
+      }
+    }
+
+    return { success: true, imported: imported.length, errors };
+  } catch (error) {
+    console.error('Error importing collection:', error);
+    throw error;
+  }
+});
+
+// FEATURE 10: Saved Searches
+ipcMain.handle('get-saved-searches', async () => {
+  try {
+    return db.prepare('SELECT * FROM saved_searches ORDER BY name').all();
+  } catch (error) {
+    console.error('Error getting saved searches:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-search', async (event, name, filters) => {
+  try {
+    const filtersJson = JSON.stringify(filters);
+    db.prepare(`
+      INSERT INTO saved_searches (name, filters)
+      VALUES (?, ?)
+      ON CONFLICT(name) DO UPDATE SET filters = ?, last_used = datetime('now')
+    `).run(name, filtersJson, filtersJson);
+    return true;
+  } catch (error) {
+    console.error('Error saving search:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-saved-search', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM saved_searches WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting saved search:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('load-saved-search', async (event, id) => {
+  try {
+    const search = db.prepare('SELECT * FROM saved_searches WHERE id = ?').get(id);
+    if (search) {
+      // Update last used
+      db.prepare('UPDATE saved_searches SET last_used = datetime("now") WHERE id = ?').run(id);
+      return JSON.parse(search.filters);
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading saved search:', error);
+    throw error;
+  }
+});
+
+// FEATURE 4: Statistics Dashboard
+ipcMain.handle('get-statistics', async () => {
+  try {
+    const stats = {
+      totalModels: db.prepare('SELECT COUNT(*) as count FROM models').get().count,
+      totalDesigners: db.prepare('SELECT COUNT(DISTINCT designer) as count FROM models WHERE designer IS NOT NULL AND designer != ""').get().count,
+      totalTags: db.prepare('SELECT COUNT(*) as count FROM tags').get().count,
+      totalPrinted: db.prepare('SELECT COUNT(*) as count FROM models WHERE printed = 1').get().count,
+      totalNotPrinted: db.prepare('SELECT COUNT(*) as count FROM models WHERE printed = 0').get().count,
+      totalFavorites: db.prepare('SELECT COUNT(*) as count FROM favorites').get().count,
+      totalSize: db.prepare('SELECT SUM(size) as total FROM models').get().total || 0,
+
+      // Print statistics
+      totalPrints: db.prepare('SELECT COUNT(*) as count FROM print_history').get().count,
+      successfulPrints: db.prepare('SELECT COUNT(*) as count FROM print_history WHERE success = 1').get().count,
+      failedPrints: db.prepare('SELECT COUNT(*) as count FROM print_history WHERE success = 0').get().count,
+
+      // Top designers
+      topDesigners: db.prepare(`
+        SELECT designer, COUNT(*) as count
+        FROM models
+        WHERE designer IS NOT NULL AND designer != ''
+        GROUP BY designer
+        ORDER BY count DESC
+        LIMIT 10
+      `).all(),
+
+      // Top tags
+      topTags: db.prepare(`
+        SELECT t.name, COUNT(mt.model_id) as count
+        FROM tags t
+        LEFT JOIN model_tags mt ON t.id = mt.tag_id
+        GROUP BY t.id, t.name
+        ORDER BY count DESC
+        LIMIT 10
+      `).all(),
+
+      // File types
+      fileTypes: db.prepare(`
+        SELECT
+          SUM(CASE WHEN fileName LIKE '%.stl' THEN 1 ELSE 0 END) as stl,
+          SUM(CASE WHEN fileName LIKE '%.3mf' THEN 1 ELSE 0 END) as threemf,
+          SUM(CASE WHEN fileName LIKE '%.zip' THEN 1 ELSE 0 END) as zip
+        FROM models
+      `).get(),
+
+      // Models by month
+      modelsByMonth: db.prepare(`
+        SELECT strftime('%Y-%m', dateAdded) as month, COUNT(*) as count
+        FROM models
+        WHERE dateAdded IS NOT NULL
+        GROUP BY month
+        ORDER BY month DESC
+        LIMIT 12
+      `).all(),
+
+      // Recently added (last 7 days)
+      recentlyAdded: db.prepare(`
+        SELECT COUNT(*) as count
+        FROM models
+        WHERE dateAdded >= datetime('now', '-7 days')
+      `).get().count,
+
+      // Recently accessed
+      recentlyAccessed: db.prepare(`
+        SELECT COUNT(*) as count
+        FROM models
+        WHERE lastAccessed >= datetime('now', '-7 days')
+      `).get().count || 0,
+
+      // Average rating
+      averageRating: db.prepare(`
+        SELECT AVG(rating) as avg
+        FROM models
+        WHERE rating > 0
+      `).get().avg || 0
+    };
+
+    return stats;
+  } catch (error) {
+    console.error('Error getting statistics:', error);
+    throw error;
+  }
+});
+// ========================================================================
+// FEATURE 11: Model Groups (Folders) with Images and Hierarchical Tags
+// ========================================================================
+
+// Get all groups
+ipcMain.handle('get-model-groups', async () => {
+  try {
+    const groups = db.prepare(`
+      SELECT g.*, 
+             COUNT(DISTINCT gm.model_id) as model_count,
+             (SELECT GROUP_CONCAT(t.name, ', ') 
+              FROM group_tags gt 
+              JOIN tags t ON gt.tag_id = t.id 
+              WHERE gt.group_id = g.id) as tag_names
+      FROM model_groups g
+      LEFT JOIN group_members gm ON g.id = gm.group_id
+      GROUP BY g.id
+      ORDER BY g.name
+    `).all();
+    return groups;
+  } catch (error) {
+    console.error('Error getting model groups:', error);
+    throw error;
+  }
+});
+
+// Get a specific group with all details
+ipcMain.handle('get-model-group', async (event, id) => {
+  try {
+    const group = db.prepare('SELECT * FROM model_groups WHERE id = ?').get(id);
+    if (!group) return null;
+
+    // Get members
+    group.models = db.prepare(`
+      SELECT m.* FROM models m
+      JOIN group_members gm ON m.id = gm.model_id
+      WHERE gm.group_id = ?
+      ORDER BY m.fileName
+    `).all(id);
+
+    // Get tags
+    group.tags = db.prepare(`
+      SELECT t.* FROM tags t
+      JOIN group_tags gt ON t.id = gt.tag_id
+      WHERE gt.group_id = ?
+    `).all(id);
+
+    return group;
+  } catch (error) {
+    console.error('Error getting model group:', error);
+    throw error;
+  }
+});
+
+// Create a new group
+ipcMain.handle('create-model-group', async (event, data) => {
+  try {
+    const { name, description, parentGroupId, modelIds, thumbnail } = data;
+
+    const result = db.prepare(`
+      INSERT INTO model_groups (name, description, parent_group_id, thumbnail)
+      VALUES (?, ?, ?, ?)
+    `).run(name, description, parentGroupId || null, thumbnail || null);
+
+    const groupId = result.lastInsertRowid;
+
+    // Add models to group if provided
+    if (modelIds && modelIds.length > 0) {
+      const insertMember = db.prepare('INSERT INTO group_members (group_id, model_id) VALUES (?, ?)');
+      const transaction = db.transaction((ids) => {
+        for (const modelId of ids) {
+          try {
+            insertMember.run(groupId, modelId);
+          } catch (err) {
+            console.error(`Error adding model ${modelId} to group:`, err);
+          }
+        }
+      });
+      transaction(modelIds);
+    }
+
+    return groupId;
+  } catch (error) {
+    console.error('Error creating model group:', error);
+    throw error;
+  }
+});
+
+// Update group
+ipcMain.handle('update-model-group', async (event, id, data) => {
+  try {
+    const { name, description, thumbnail } = data;
+    db.prepare(`
+      UPDATE model_groups
+      SET name = ?, description = ?, thumbnail = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(name, description, thumbnail, id);
+    return true;
+  } catch (error) {
+    console.error('Error updating model group:', error);
+    throw error;
+  }
+});
+
+// Delete group
+ipcMain.handle('delete-model-group', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM model_groups WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting model group:', error);
+    throw error;
+  }
+});
+
+// Add models to group
+ipcMain.handle('add-models-to-group', async (event, groupId, modelIds) => {
+  try {
+    const insertMember = db.prepare(`
+      INSERT OR IGNORE INTO group_members (group_id, model_id)
+      VALUES (?, ?)
+    `);
+
+    const transaction = db.transaction((ids) => {
+      for (const modelId of ids) {
+        insertMember.run(groupId, modelId);
+      }
+    });
+
+    transaction(modelIds);
+    return true;
+  } catch (error) {
+    console.error('Error adding models to group:', error);
+    throw error;
+  }
+});
+
+// Remove models from group
+ipcMain.handle('remove-models-from-group', async (event, groupId, modelIds) => {
+  try {
+    const deleteMember = db.prepare('DELETE FROM group_members WHERE group_id = ? AND model_id = ?');
+
+    const transaction = db.transaction((ids) => {
+      for (const modelId of ids) {
+        deleteMember.run(groupId, modelId);
+      }
+    });
+
+    transaction(modelIds);
+    return true;
+  } catch (error) {
+    console.error('Error removing models from group:', error);
+    throw error;
+  }
+});
+
+// Get groups that a model belongs to
+ipcMain.handle('get-model-groups-for-model', async (event, modelId) => {
+  try {
+    return db.prepare(`
+      SELECT g.* FROM model_groups g
+      JOIN group_members gm ON g.id = gm.group_id
+      WHERE gm.model_id = ?
+    `).all(modelId);
+  } catch (error) {
+    console.error('Error getting groups for model:', error);
+    throw error;
+  }
+});
+
+// Set group thumbnail
+ipcMain.handle('set-group-thumbnail', async (event, groupId, thumbnail) => {
+  try {
+    db.prepare('UPDATE model_groups SET thumbnail = ?, updated_at = datetime("now") WHERE id = ?')
+      .run(thumbnail, groupId);
+    return true;
+  } catch (error) {
+    console.error('Error setting group thumbnail:', error);
+    throw error;
+  }
+});
+
+// Add tags to group
+ipcMain.handle('add-tags-to-group', async (event, groupId, tagIds) => {
+  try {
+    const insertTag = db.prepare(`
+      INSERT OR IGNORE INTO group_tags (group_id, tag_id)
+      VALUES (?, ?)
+    `);
+
+    const transaction = db.transaction((ids) => {
+      for (const tagId of ids) {
+        insertTag.run(groupId, tagId);
+      }
+    });
+
+    transaction(tagIds);
+    return true;
+  } catch (error) {
+    console.error('Error adding tags to group:', error);
+    throw error;
+  }
+});
+
+// Remove tags from group
+ipcMain.handle('remove-tags-from-group', async (event, groupId, tagIds) => {
+  try {
+    const deleteTag = db.prepare('DELETE FROM group_tags WHERE group_id = ? AND tag_id = ?');
+
+    const transaction = db.transaction((ids) => {
+      for (const tagId of ids) {
+        deleteTag.run(groupId, tagId);
+      }
+    });
+
+    transaction(tagIds);
+    return true;
+  } catch (error) {
+    console.error('Error removing tags from group:', error);
+    throw error;
+  }
+});
+
+// Get all tags for a group
+ipcMain.handle('get-group-tags', async (event, groupId) => {
+  try {
+    return db.prepare(`
+      SELECT t.* FROM tags t
+      JOIN group_tags gt ON t.id = gt.tag_id
+      WHERE gt.group_id = ?
+      ORDER BY t.name
+    `).all(groupId);
+  } catch (error) {
+    console.error('Error getting group tags:', error);
+    throw error;
+  }
+});
+
+// Search across all levels (models, groups, hierarchical)
+ipcMain.handle('search-all-levels', async (event, searchParams) => {
+  try {
+    const { searchTerm, tagId, includeGroups, includeModels } = searchParams;
+    const results = { models: [], groups: [] };
+
+    // Search models
+    if (includeModels !== false) {
+      let modelQuery = `
+        SELECT DISTINCT m.* FROM models m
+        LEFT JOIN model_tags mt ON m.id = mt.model_id
+        LEFT JOIN group_members gm ON m.id = gm.model_id
+        LEFT JOIN model_groups g ON gm.group_id = g.id
+        LEFT JOIN group_tags gt ON g.id = gt.group_id
+        WHERE 1=1
+      `;
+      const modelParams = [];
+
+      if (searchTerm) {
+        modelQuery += ` AND (m.fileName LIKE ? OR m.designer LIKE ? OR m.notes LIKE ?)`;
+        modelParams.push(`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`);
+      }
+
+      if (tagId) {
+        // Search for tag in model tags OR in any group the model belongs to
+        modelQuery += ` AND (mt.tag_id = ? OR gt.tag_id = ?)`;
+        modelParams.push(tagId, tagId);
+      }
+
+      results.models = db.prepare(modelQuery).all(...modelParams);
+    }
+
+    // Search groups
+    if (includeGroups !== false) {
+      let groupQuery = `
+        SELECT DISTINCT g.*, 
+               COUNT(DISTINCT gm.model_id) as model_count,
+               (SELECT GROUP_CONCAT(t.name, ', ') 
+                FROM group_tags gt2 
+                JOIN tags t ON gt2.tag_id = t.id 
+                WHERE gt2.group_id = g.id) as tag_names
+        FROM model_groups g
+        LEFT JOIN group_tags gt ON g.id = gt.group_id
+        LEFT JOIN group_members gm ON g.id = gm.group_id
+        WHERE 1=1
+      `;
+      const groupParams = [];
+
+      if (searchTerm) {
+        groupQuery += ` AND (g.name LIKE ? OR g.description LIKE ?)`;
+        groupParams.push(`%${searchTerm}%`, `%${searchTerm}%`);
+      }
+
+      if (tagId) {
+        groupQuery += ` AND gt.tag_id = ?`;
+        groupParams.push(tagId);
+      }
+
+      groupQuery += ` GROUP BY g.id`;
+
+      results.groups = db.prepare(groupQuery).all(...groupParams);
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error searching all levels:', error);
+    throw error;
+  }
+});
+
+// Get tag hierarchy (all models and groups with a specific tag)
+ipcMain.handle('get-tag-hierarchy', async (event, tagId) => {
+  try {
+    const tag = db.prepare('SELECT * FROM tags WHERE id = ?').get(tagId);
+    if (!tag) return null;
+
+    // Get all models with this tag (directly or through groups)
+    const models = db.prepare(`
+      SELECT DISTINCT m.* FROM models m
+      LEFT JOIN model_tags mt ON m.id = mt.model_id
+      LEFT JOIN group_members gm ON m.id = gm.model_id
+      LEFT JOIN group_tags gt ON gm.group_id = gt.group_id
+      WHERE mt.tag_id = ? OR gt.tag_id = ?
+    `).all(tagId, tagId);
+
+    // Get all groups with this tag
+    const groups = db.prepare(`
+      SELECT g.*, COUNT(DISTINCT gm.model_id) as model_count
+      FROM model_groups g
+      JOIN group_tags gt ON g.id = gt.group_id
+      LEFT JOIN group_members gm ON g.id = gm.group_id
+      WHERE gt.tag_id = ?
+      GROUP BY g.id
+    `).all(tagId);
+
+    return {
+      tag,
+      models,
+      groups,
+      totalModels: models.length,
+      totalGroups: groups.length
+    };
+  } catch (error) {
+    console.error('Error getting tag hierarchy:', error);
+    throw error;
+  }
+});
+
+
+// ========================================================================
+// FEATURE 12: Filament Inventory System
+// ========================================================================
+
+// Get all filament spools
+ipcMain.handle('get-filament-spools', async () => {
+  try {
+    const spools = db.prepare(`
+      SELECT s.*,
+             (SELECT SUM(fu.weight_used) FROM filament_usage fu WHERE fu.spool_id = s.id) as total_used
+      FROM filament_spools s
+      ORDER BY s.created_at DESC
+    `).all();
+    return spools;
+  } catch (error) {
+    console.error('Error getting filament spools:', error);
+    throw error;
+  }
+});
+
+// Get single spool
+ipcMain.handle('get-filament-spool', async (event, id) => {
+  try {
+    const spool = db.prepare('SELECT * FROM filament_spools WHERE id = ?').get(id);
+    if (!spool) return null;
+
+    // Get usage history
+    spool.usage = db.prepare(`
+      SELECT fu.*, ph.model_id, m.fileName
+      FROM filament_usage fu
+      LEFT JOIN print_history ph ON fu.print_history_id = ph.id
+      LEFT JOIN models m ON ph.model_id = m.id
+      WHERE fu.spool_id = ?
+      ORDER BY fu.used_at DESC
+    `).all(id);
+
+    return spool;
+  } catch (error) {
+    console.error('Error getting filament spool:', error);
+    throw error;
+  }
+});
+
+// Create filament spool
+ipcMain.handle('create-filament-spool', async (event, data) => {
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO filament_spools (
+        brand, material_type, color, weight_total, weight_remaining,
+        cost, purchase_date, spool_diameter, filament_diameter,
+        notes, barcode, location
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      data.brand,
+      data.material_type,
+      data.color,
+      data.weight_total,
+      data.weight_remaining || data.weight_total,
+      data.cost,
+      data.purchase_date,
+      data.spool_diameter,
+      data.filament_diameter || 1.75,
+      data.notes,
+      data.barcode,
+      data.location
+    );
+
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error creating filament spool:', error);
+    throw error;
+  }
+});
+
+// Update filament spool
+ipcMain.handle('update-filament-spool', async (event, data) => {
+  try {
+    const stmt = db.prepare(`
+      UPDATE filament_spools SET
+        brand = ?, material_type = ?, color = ?, weight_total = ?,
+        weight_remaining = ?, cost = ?, purchase_date = ?,
+        spool_diameter = ?, filament_diameter = ?, notes = ?,
+        barcode = ?, location = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    stmt.run(
+      data.brand,
+      data.material_type,
+      data.color,
+      data.weight_total,
+      data.weight_remaining,
+      data.cost,
+      data.purchase_date,
+      data.spool_diameter,
+      data.filament_diameter,
+      data.notes,
+      data.barcode,
+      data.location,
+      data.id
+    );
+
+    return true;
+  } catch (error) {
+    console.error('Error updating filament spool:', error);
+    throw error;
+  }
+});
+
+// Delete filament spool
+ipcMain.handle('delete-filament-spool', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM filament_spools WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting filament spool:', error);
+    throw error;
+  }
+});
+
+// Record filament usage
+ipcMain.handle('record-filament-usage', async (event, data) => {
+  try {
+    const transaction = db.transaction(() => {
+      // Record usage
+      const stmt = db.prepare(`
+        INSERT INTO filament_usage (print_history_id, spool_id, weight_used)
+        VALUES (?, ?, ?)
+      `);
+      stmt.run(data.print_history_id, data.spool_id, data.weight_used);
+
+      // Update spool remaining weight
+      db.prepare(`
+        UPDATE filament_spools
+        SET weight_remaining = weight_remaining - ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(data.weight_used, data.spool_id);
+    });
+
+    transaction();
+    return true;
+  } catch (error) {
+    console.error('Error recording filament usage:', error);
+    throw error;
+  }
+});
+
+// Get low stock spools
+ipcMain.handle('get-low-stock-spools', async (event, threshold = 100) => {
+  try {
+    const spools = db.prepare(`
+      SELECT * FROM filament_spools
+      WHERE weight_remaining < ?
+      ORDER BY weight_remaining ASC
+    `).all(threshold);
+    return spools;
+  } catch (error) {
+    console.error('Error getting low stock spools:', error);
+    throw error;
+  }
+});
+
+// Get filament statistics
+ipcMain.handle('get-filament-statistics', async () => {
+  try {
+    const stats = {
+      totalSpools: db.prepare('SELECT COUNT(*) as count FROM filament_spools').get().count,
+      totalWeight: db.prepare('SELECT SUM(weight_remaining) as total FROM filament_spools').get().total || 0,
+      totalValue: db.prepare('SELECT SUM(cost * (weight_remaining / NULLIF(weight_total, 0))) as total FROM filament_spools').get().total || 0,
+      byMaterial: db.prepare(`
+        SELECT material_type, COUNT(*) as count, SUM(weight_remaining) as weight
+        FROM filament_spools
+        GROUP BY material_type
+        ORDER BY count DESC
+      `).all(),
+      byColor: db.prepare(`
+        SELECT color, COUNT(*) as count
+        FROM filament_spools
+        GROUP BY color
+        ORDER BY count DESC
+        LIMIT 10
+      `).all(),
+      lowStock: db.prepare(`
+        SELECT COUNT(*) as count FROM filament_spools WHERE weight_remaining < 100
+      `).get().count
+    };
+    return stats;
+  } catch (error) {
+    console.error('Error getting filament statistics:', error);
+    throw error;
+  }
+});
+
+// ========================================================================
+// FEATURE 13: Enhanced Cost Tracking
+// ========================================================================
+
+// Get cost settings
+ipcMain.handle('get-cost-settings', async () => {
+  try {
+    let settings = db.prepare('SELECT * FROM cost_settings LIMIT 1').get();
+    if (!settings) {
+      // Create default settings
+      db.prepare(`
+        INSERT INTO cost_settings (electricity_rate, currency, printer_wattage)
+        VALUES (0.12, 'USD', 200)
+      `).run();
+      settings = db.prepare('SELECT * FROM cost_settings LIMIT 1').get();
+    }
+    return settings;
+  } catch (error) {
+    console.error('Error getting cost settings:', error);
+    throw error;
+  }
+});
+
+// Update cost settings
+ipcMain.handle('update-cost-settings', async (event, data) => {
+  try {
+    db.prepare(`
+      UPDATE cost_settings SET
+        electricity_rate = ?,
+        currency = ?,
+        printer_wattage = ?,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(data.electricity_rate, data.currency, data.printer_wattage);
+    return true;
+  } catch (error) {
+    console.error('Error updating cost settings:', error);
+    throw error;
+  }
+});
+
+// Calculate print cost
+ipcMain.handle('calculate-print-cost', async (event, printData) => {
+  try {
+    const settings = await ipcMain.handle('get-cost-settings')();
+
+    // Calculate filament cost
+    let filamentCost = 0;
+    if (printData.spool_id && printData.weight_used) {
+      const spool = db.prepare('SELECT cost, weight_total FROM filament_spools WHERE id = ?').get(printData.spool_id);
+      if (spool && spool.cost && spool.weight_total) {
+        const costPerGram = spool.cost / spool.weight_total;
+        filamentCost = costPerGram * printData.weight_used;
+      }
+    }
+
+    // Calculate electricity cost
+    let electricityCost = 0;
+    if (printData.duration && settings) {
+      const hours = printData.duration / 3600; // Convert seconds to hours
+      const kWh = (settings.printer_wattage / 1000) * hours;
+      electricityCost = kWh * settings.electricity_rate;
+    }
+
+    const totalCost = filamentCost + electricityCost;
+
+    return {
+      filament_cost: filamentCost,
+      electricity_cost: electricityCost,
+      total_cost: totalCost
+    };
+  } catch (error) {
+    console.error('Error calculating print cost:', error);
+    throw error;
+  }
+});
+
+// Save print cost
+ipcMain.handle('save-print-cost', async (event, data) => {
+  try {
+    db.prepare(`
+      INSERT INTO print_costs (print_history_id, filament_cost, electricity_cost, total_cost)
+      VALUES (?, ?, ?, ?)
+    `).run(data.print_history_id, data.filament_cost, data.electricity_cost, data.total_cost);
+    return true;
+  } catch (error) {
+    console.error('Error saving print cost:', error);
+    throw error;
+  }
+});
+
+// Get cost statistics
+ipcMain.handle('get-cost-statistics', async (event, timeRange = 'all') => {
+  try {
+    let dateFilter = '';
+    if (timeRange === 'month') {
+      dateFilter = "WHERE ph.print_date >= date('now', '-1 month')";
+    } else if (timeRange === 'year') {
+      dateFilter = "WHERE ph.print_date >= date('now', '-1 year')";
+    }
+
+    const stats = {
+      totalCost: db.prepare(`
+        SELECT SUM(total_cost) as total
+        FROM print_costs pc
+        JOIN print_history ph ON pc.print_history_id = ph.id
+        ${dateFilter}
+      `).get().total || 0,
+      filamentCost: db.prepare(`
+        SELECT SUM(filament_cost) as total
+        FROM print_costs pc
+        JOIN print_history ph ON pc.print_history_id = ph.id
+        ${dateFilter}
+      `).get().total || 0,
+      electricityCost: db.prepare(`
+        SELECT SUM(electricity_cost) as total
+        FROM print_costs pc
+        JOIN print_history ph ON pc.print_history_id = ph.id
+        ${dateFilter}
+      `).get().total || 0,
+      avgCostPerPrint: db.prepare(`
+        SELECT AVG(total_cost) as avg
+        FROM print_costs pc
+        JOIN print_history ph ON pc.print_history_id = ph.id
+        ${dateFilter}
+      `).get().avg || 0,
+      costByMonth: db.prepare(`
+        SELECT strftime('%Y-%m', ph.print_date) as month,
+               SUM(pc.total_cost) as total
+        FROM print_costs pc
+        JOIN print_history ph ON pc.print_history_id = ph.id
+        WHERE ph.print_date >= date('now', '-12 months')
+        GROUP BY month
+        ORDER BY month
+      `).all()
+    };
+
+    return stats;
+  } catch (error) {
+    console.error('Error getting cost statistics:', error);
+    throw error;
+  }
+});
+
+// ========================================================================
+// FEATURE 14: Enhanced Slicer Integration
+// ========================================================================
+
+// Get slicer profiles
+ipcMain.handle('get-slicer-profiles', async (event, slicerId = null) => {
+  try {
+    let query = 'SELECT * FROM slicer_profiles';
+    if (slicerId) {
+      query += ' WHERE slicer_id = ?';
+      return db.prepare(query).all(slicerId);
+    }
+    return db.prepare(query).all();
+  } catch (error) {
+    console.error('Error getting slicer profiles:', error);
+    throw error;
+  }
+});
+
+// Create slicer profile
+ipcMain.handle('create-slicer-profile', async (event, data) => {
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO slicer_profiles (
+        name, slicer_id, profile_path, quality, material_type,
+        layer_height, infill_percentage, supports, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      data.name,
+      data.slicer_id,
+      data.profile_path,
+      data.quality,
+      data.material_type,
+      data.layer_height,
+      data.infill_percentage,
+      data.supports ? 1 : 0,
+      data.notes
+    );
+
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error creating slicer profile:', error);
+    throw error;
+  }
+});
+
+// Update slicer profile
+ipcMain.handle('update-slicer-profile', async (event, data) => {
+  try {
+    db.prepare(`
+      UPDATE slicer_profiles SET
+        name = ?, profile_path = ?, quality = ?, material_type = ?,
+        layer_height = ?, infill_percentage = ?, supports = ?, notes = ?
+      WHERE id = ?
+    `).run(
+      data.name,
+      data.profile_path,
+      data.quality,
+      data.material_type,
+      data.layer_height,
+      data.infill_percentage,
+      data.supports ? 1 : 0,
+      data.notes,
+      data.id
+    );
+    return true;
+  } catch (error) {
+    console.error('Error updating slicer profile:', error);
+    throw error;
+  }
+});
+
+// Delete slicer profile
+ipcMain.handle('delete-slicer-profile', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM slicer_profiles WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting slicer profile:', error);
+    throw error;
+  }
+});
+
+// Get model slicer settings
+ipcMain.handle('get-model-slicer-settings', async (event, modelId) => {
+  try {
+    const settings = db.prepare(`
+      SELECT mss.*, sp.name as profile_name
+      FROM model_slicer_settings mss
+      LEFT JOIN slicer_profiles sp ON mss.profile_id = sp.id
+      WHERE mss.model_id = ?
+    `).get(modelId);
+    return settings;
+  } catch (error) {
+    console.error('Error getting model slicer settings:', error);
+    throw error;
+  }
+});
+
+// Save model slicer settings
+ipcMain.handle('save-model-slicer-settings', async (event, data) => {
+  try {
+    db.prepare(`
+      INSERT OR REPLACE INTO model_slicer_settings (
+        model_id, profile_id, last_used_profile, gcode_path,
+        estimated_time, estimated_filament, last_sliced
+      ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(
+      data.model_id,
+      data.profile_id,
+      data.last_used_profile,
+      data.gcode_path,
+      data.estimated_time,
+      data.estimated_filament
+    );
+    return true;
+  } catch (error) {
+    console.error('Error saving model slicer settings:', error);
+    throw error;
+  }
+});
+
+// ========================================================================
+// FEATURE 15: Print Scheduling & Calendar
+// ========================================================================
+
+// Get scheduled prints
+ipcMain.handle('get-scheduled-prints', async (event, filters = {}) => {
+  try {
+    let query = `
+      SELECT sp.*, m.fileName, m.thumbnail
+      FROM scheduled_prints sp
+      JOIN models m ON sp.model_id = m.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (filters.status) {
+      query += ' AND sp.status = ?';
+      params.push(filters.status);
+    }
+
+    if (filters.startDate) {
+      query += ' AND sp.scheduled_date >= ?';
+      params.push(filters.startDate);
+    }
+
+    if (filters.endDate) {
+      query += ' AND sp.scheduled_date <= ?';
+      params.push(filters.endDate);
+    }
+
+    query += ' ORDER BY sp.scheduled_date ASC';
+
+    return db.prepare(query).all(...params);
+  } catch (error) {
+    console.error('Error getting scheduled prints:', error);
+    throw error;
+  }
+});
+
+// Create scheduled print
+ipcMain.handle('create-scheduled-print', async (event, data) => {
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO scheduled_prints (
+        model_id, scheduled_date, deadline, priority, notes
+      ) VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      data.model_id,
+      data.scheduled_date,
+      data.deadline,
+      data.priority || 'normal',
+      data.notes
+    );
+
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error creating scheduled print:', error);
+    throw error;
+  }
+});
+
+// Update scheduled print
+ipcMain.handle('update-scheduled-print', async (event, data) => {
+  try {
+    db.prepare(`
+      UPDATE scheduled_prints SET
+        scheduled_date = ?, deadline = ?, priority = ?,
+        status = ?, notes = ?
+      WHERE id = ?
+    `).run(
+      data.scheduled_date,
+      data.deadline,
+      data.priority,
+      data.status,
+      data.notes,
+      data.id
+    );
+    return true;
+  } catch (error) {
+    console.error('Error updating scheduled print:', error);
+    throw error;
+  }
+});
+
+// Complete scheduled print
+ipcMain.handle('complete-scheduled-print', async (event, id) => {
+  try {
+    db.prepare(`
+      UPDATE scheduled_prints SET
+        status = 'completed',
+        completed_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(id);
+    return true;
+  } catch (error) {
+    console.error('Error completing scheduled print:', error);
+    throw error;
+  }
+});
+
+// Delete scheduled print
+ipcMain.handle('delete-scheduled-print', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM scheduled_prints WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting scheduled print:', error);
+    throw error;
+  }
+});
+
+// Get print projects
+ipcMain.handle('get-print-projects', async () => {
+  try {
+    const projects = db.prepare(`
+      SELECT p.*,
+             COUNT(pm.id) as total_models,
+             SUM(pm.quantity) as total_parts,
+             SUM(pm.printed_quantity) as printed_parts
+      FROM print_projects p
+      LEFT JOIN project_models pm ON p.id = pm.project_id
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+    `).all();
+    return projects;
+  } catch (error) {
+    console.error('Error getting print projects:', error);
+    throw error;
+  }
+});
+
+// Get project details
+ipcMain.handle('get-print-project', async (event, id) => {
+  try {
+    const project = db.prepare('SELECT * FROM print_projects WHERE id = ?').get(id);
+    if (!project) return null;
+
+    // Get models
+    project.models = db.prepare(`
+      SELECT pm.*, m.fileName, m.thumbnail
+      FROM project_models pm
+      JOIN models m ON pm.model_id = m.id
+      WHERE pm.project_id = ?
+    `).all(id);
+
+    return project;
+  } catch (error) {
+    console.error('Error getting print project:', error);
+    throw error;
+  }
+});
+
+// Create print project
+ipcMain.handle('create-print-project', async (event, data) => {
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO print_projects (name, description, deadline, status)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      data.name,
+      data.description,
+      data.deadline,
+      data.status || 'active'
+    );
+
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error creating print project:', error);
+    throw error;
+  }
+});
+
+// Update print project
+ipcMain.handle('update-print-project', async (event, data) => {
+  try {
+    db.prepare(`
+      UPDATE print_projects SET
+        name = ?, description = ?, deadline = ?, status = ?
+      WHERE id = ?
+    `).run(data.name, data.description, data.deadline, data.status, data.id);
+    return true;
+  } catch (error) {
+    console.error('Error updating print project:', error);
+    throw error;
+  }
+});
+
+// Delete print project
+ipcMain.handle('delete-print-project', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM print_projects WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting print project:', error);
+    throw error;
+  }
+});
+
+// Add model to project
+ipcMain.handle('add-model-to-project', async (event, data) => {
+  try {
+    db.prepare(`
+      INSERT INTO project_models (project_id, model_id, quantity, notes)
+      VALUES (?, ?, ?, ?)
+    `).run(data.project_id, data.model_id, data.quantity || 1, data.notes);
+    return true;
+  } catch (error) {
+    console.error('Error adding model to project:', error);
+    throw error;
+  }
+});
+
+// Update project model
+ipcMain.handle('update-project-model', async (event, data) => {
+  try {
+    db.prepare(`
+      UPDATE project_models SET
+        quantity = ?, printed_quantity = ?, notes = ?
+      WHERE id = ?
+    `).run(data.quantity, data.printed_quantity, data.notes, data.id);
+    return true;
+  } catch (error) {
+    console.error('Error updating project model:', error);
+    throw error;
+  }
+});
+
+// Remove model from project
+ipcMain.handle('remove-model-from-project', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM project_models WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error removing model from project:', error);
+    throw error;
+  }
+});
+
+// ========================================================================
+// FEATURE 16: Community Platform Integration
+// ========================================================================
+
+// Get community sources
+ipcMain.handle('get-community-sources', async () => {
+  try {
+    return db.prepare('SELECT * FROM community_sources ORDER BY name').all();
+  } catch (error) {
+    console.error('Error getting community sources:', error);
+    throw error;
+  }
+});
+
+// Add community source
+ipcMain.handle('add-community-source', async (event, data) => {
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO community_sources (name, base_url, api_key, enabled)
+      VALUES (?, ?, ?, ?)
+    `);
+    const result = stmt.run(data.name, data.base_url, data.api_key, data.enabled ? 1 : 0);
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Error adding community source:', error);
+    throw error;
+  }
+});
+
+// Update community source
+ipcMain.handle('update-community-source', async (event, data) => {
+  try {
+    db.prepare(`
+      UPDATE community_sources SET
+        name = ?, base_url = ?, api_key = ?, enabled = ?
+      WHERE id = ?
+    `).run(data.name, data.base_url, data.api_key, data.enabled ? 1 : 0, data.id);
+    return true;
+  } catch (error) {
+    console.error('Error updating community source:', error);
+    throw error;
+  }
+});
+
+// Delete community source
+ipcMain.handle('delete-community-source', async (event, id) => {
+  try {
+    db.prepare('DELETE FROM community_sources WHERE id = ?').run(id);
+    return true;
+  } catch (error) {
+    console.error('Error deleting community source:', error);
+    throw error;
+  }
+});
+
+// Link model to source
+ipcMain.handle('link-model-to-source', async (event, data) => {
+  try {
+    db.prepare(`
+      INSERT INTO model_sources (model_id, source_id, source_url, source_model_id)
+      VALUES (?, ?, ?, ?)
+    `).run(data.model_id, data.source_id, data.source_url, data.source_model_id);
+    return true;
+  } catch (error) {
+    console.error('Error linking model to source:', error);
+    throw error;
+  }
+});
+
+// Get model source info
+ipcMain.handle('get-model-source', async (event, modelId) => {
+  try {
+    const source = db.prepare(`
+      SELECT ms.*, cs.name as source_name, cs.base_url
+      FROM model_sources ms
+      JOIN community_sources cs ON ms.source_id = cs.id
+      WHERE ms.model_id = ?
+    `).get(modelId);
+    return source;
+  } catch (error) {
+    console.error('Error getting model source:', error);
+    throw error;
+  }
+});
+
+// Check for model updates
+ipcMain.handle('check-model-updates', async (event, modelId) => {
+  try {
+    // This would integrate with actual platform APIs
+    // For now, just update the last_checked timestamp
+    db.prepare(`
+      UPDATE model_sources SET
+        last_checked = CURRENT_TIMESTAMP
+      WHERE model_id = ?
+    `).run(modelId);
+    return { hasUpdate: false, message: 'Check functionality requires API integration' };
+  } catch (error) {
+    console.error('Error checking model updates:', error);
+    throw error;
+  }
+});
+
+// Get models with available updates
+ipcMain.handle('get-models-with-updates', async () => {
+  try {
+    const models = db.prepare(`
+      SELECT ms.*, m.fileName, m.thumbnail
+      FROM model_sources ms
+      JOIN models m ON ms.model_id = m.id
+      WHERE ms.has_update = 1
+      ORDER BY ms.last_checked DESC
+    `).all();
+    return models;
+  } catch (error) {
+    console.error('Error getting models with updates:', error);
+    throw error;
+  }
+});
+
+// ========================================================================
+// FEATURE 17: Model Version Control
+// ========================================================================
+
+// Get model versions
+ipcMain.handle('get-model-versions', async (event, modelId) => {
+  try {
+    const versions = db.prepare(`
+      SELECT * FROM model_versions
+      WHERE model_id = ?
+      ORDER BY version_number DESC
+    `).all(modelId);
+    return versions;
+  } catch (error) {
+    console.error('Error getting model versions:', error);
+    throw error;
+  }
+});
+
+// Create new version
+ipcMain.handle('create-model-version', async (event, data) => {
+  try {
+    const transaction = db.transaction(() => {
+      // Get next version number
+      const maxVersion = db.prepare(`
+        SELECT COALESCE(MAX(version_number), 0) as max
+        FROM model_versions WHERE model_id = ?
+      `).get(data.model_id);
+
+      const nextVersion = maxVersion.max + 1;
+
+      // Unset current version
+      db.prepare(`
+        UPDATE model_versions SET is_current = 0 WHERE model_id = ?
+      `).run(data.model_id);
+
+      // Insert new version
+      const stmt = db.prepare(`
+        INSERT INTO model_versions (
+          model_id, version_number, file_path, thumbnail, notes, is_current
+        ) VALUES (?, ?, ?, ?, ?, 1)
+      `);
+
+      const result = stmt.run(
+        data.model_id,
+        nextVersion,
+        data.file_path,
+        data.thumbnail,
+        data.notes
+      );
+
+      return result.lastInsertRowid;
+    });
+
+    return transaction();
+  } catch (error) {
+    console.error('Error creating model version:', error);
+    throw error;
+  }
+});
+
+// Set current version
+ipcMain.handle('set-current-version', async (event, versionId) => {
+  try {
+    const transaction = db.transaction(() => {
+      const version = db.prepare('SELECT model_id FROM model_versions WHERE id = ?').get(versionId);
+      if (!version) throw new Error('Version not found');
+
+      // Unset all current versions for this model
+      db.prepare(`
+        UPDATE model_versions SET is_current = 0 WHERE model_id = ?
+      `).run(version.model_id);
+
+      // Set this version as current
+      db.prepare(`
+        UPDATE model_versions SET is_current = 1 WHERE id = ?
+      `).run(versionId);
+    });
+
+    transaction();
+    return true;
+  } catch (error) {
+    console.error('Error setting current version:', error);
+    throw error;
+  }
+});
+
+// Delete version
+ipcMain.handle('delete-model-version', async (event, versionId) => {
+  try {
+    db.prepare('DELETE FROM model_versions WHERE id = ?').run(versionId);
+    return true;
+  } catch (error) {
+    console.error('Error deleting model version:', error);
+    throw error;
+  }
+});
+
+// Compare versions
+ipcMain.handle('compare-model-versions', async (event, version1Id, version2Id) => {
+  try {
+    const v1 = db.prepare('SELECT * FROM model_versions WHERE id = ?').get(version1Id);
+    const v2 = db.prepare('SELECT * FROM model_versions WHERE id = ?').get(version2Id);
+
+    if (!v1 || !v2) throw new Error('Version not found');
+
+    // Check if comparison already exists
+    let comparison = db.prepare(`
+      SELECT * FROM model_comparisons
+      WHERE (version1_id = ? AND version2_id = ?) OR (version1_id = ? AND version2_id = ?)
+    `).get(version1Id, version2Id, version2Id, version1Id);
+
+    if (!comparison) {
+      // Create new comparison
+      const summary = `Version ${v1.version_number} vs Version ${v2.version_number}`;
+      db.prepare(`
+        INSERT INTO model_comparisons (version1_id, version2_id, diff_summary)
+        VALUES (?, ?, ?)
+      `).run(version1Id, version2Id, summary);
+
+      comparison = db.prepare(`
+        SELECT * FROM model_comparisons WHERE version1_id = ? AND version2_id = ?
+      `).get(version1Id, version2Id);
+    }
+
+    return {
+      comparison,
+      version1: v1,
+      version2: v2
+    };
+  } catch (error) {
+    console.error('Error comparing model versions:', error);
+    throw error;
+  }
+});
+
+// ========================================================================
+// FEATURE 18: Smart Recommendations
+// ========================================================================
+
+// Get recommendations for model
+ipcMain.handle('get-model-recommendations', async (event, modelId, limit = 10) => {
+  try {
+    // Get models with similar tags
+    const tagBasedRecs = db.prepare(`
+      SELECT DISTINCT m2.*, COUNT(*) as match_score
+      FROM models m1
+      JOIN model_tags mt1 ON m1.id = mt1.model_id
+      JOIN model_tags mt2 ON mt1.tag_id = mt2.tag_id
+      JOIN models m2 ON mt2.model_id = m2.id
+      WHERE m1.id = ? AND m2.id != ?
+      GROUP BY m2.id
+      ORDER BY match_score DESC
+      LIMIT ?
+    `).all(modelId, modelId, limit);
+
+    // Get models from same designer
+    const model = db.prepare('SELECT designer FROM models WHERE id = ?').get(modelId);
+    const designerRecs = [];
+    if (model && model.designer) {
+      designerRecs.push(...db.prepare(`
+        SELECT * FROM models
+        WHERE designer = ? AND id != ?
+        ORDER BY RANDOM()
+        LIMIT ?
+      `).all(model.designer, modelId, 5));
+    }
+
+    // Get stored associations
+    const storedRecs = db.prepare(`
+      SELECT m.*, ma.association_score
+      FROM model_associations ma
+      JOIN models m ON (ma.model_b_id = m.id OR ma.model_a_id = m.id)
+      WHERE (ma.model_a_id = ? OR ma.model_b_id = ?) AND m.id != ?
+      ORDER BY ma.association_score DESC
+      LIMIT ?
+    `).all(modelId, modelId, modelId, limit);
+
+    // Combine and deduplicate
+    const seen = new Set([modelId]);
+    const combined = [];
+
+    for (const rec of [...storedRecs, ...tagBasedRecs, ...designerRecs]) {
+      if (!seen.has(rec.id) && combined.length < limit) {
+        seen.add(rec.id);
+        combined.push(rec);
+      }
+    }
+
+    return combined;
+  } catch (error) {
+    console.error('Error getting model recommendations:', error);
+    throw error;
+  }
+});
+
+// Record model association (e.g., when printed together)
+ipcMain.handle('record-model-association', async (event, modelAId, modelBId, type = 'printed_together') => {
+  try {
+    // Ensure modelA < modelB for consistency
+    const [id1, id2] = modelAId < modelBId ? [modelAId, modelBId] : [modelBId, modelAId];
+
+    db.prepare(`
+      INSERT INTO model_associations (model_a_id, model_b_id, association_type, association_score)
+      VALUES (?, ?, ?, 1.0)
+      ON CONFLICT(model_a_id, model_b_id) DO UPDATE SET
+        association_score = association_score + 0.5
+    `).run(id1, id2, type);
+
+    return true;
+  } catch (error) {
+    console.error('Error recording model association:', error);
+    throw error;
+  }
+});
+
+// Get quick win recommendations (short prints)
+ipcMain.handle('get-quick-wins', async (event, maxTime = 7200) => {
+  try {
+    const models = db.prepare(`
+      SELECT m.*, mss.estimated_time
+      FROM models m
+      LEFT JOIN model_slicer_settings mss ON m.id = mss.model_id
+      WHERE m.printed = 0
+        AND (mss.estimated_time IS NULL OR mss.estimated_time <= ?)
+      ORDER BY RANDOM()
+      LIMIT 20
+    `).all(maxTime);
+    return models;
+  } catch (error) {
+    console.error('Error getting quick wins:', error);
+    throw error;
+  }
+});
+
+// Get recommendations based on available filament
+ipcMain.handle('get-filament-based-recommendations', async (event, spoolId) => {
+  try {
+    const spool = db.prepare(`
+      SELECT material_type, color FROM filament_spools WHERE id = ?
+    `).get(spoolId);
+
+    if (!spool) return [];
+
+    // Find models that would work with this material
+    // This is a simple implementation - could be enhanced with material compatibility data
+    const models = db.prepare(`
+      SELECT DISTINCT m.*
+      FROM models m
+      LEFT JOIN model_tags mt ON m.id = mt.model_id
+      LEFT JOIN tags t ON mt.tag_id = t.id
+      WHERE m.printed = 0
+        AND (t.name LIKE ? OR t.name LIKE ?)
+      ORDER BY RANDOM()
+      LIMIT 20
+    `).all(`%${spool.material_type}%`, `%${spool.color}%`);
+
+    return models;
+  } catch (error) {
+    console.error('Error getting filament-based recommendations:', error);
+    throw error;
+  }
+});
+
+// Get user preferences
+ipcMain.handle('get-user-preference', async (event, key) => {
+  try {
+    const pref = db.prepare(`
+      SELECT preference_value FROM user_preferences WHERE preference_key = ?
+    `).get(key);
+    return pref ? pref.preference_value : null;
+  } catch (error) {
+    console.error('Error getting user preference:', error);
+    throw error;
+  }
+});
+
+// Set user preference
+ipcMain.handle('set-user-preference', async (event, key, value) => {
+  try {
+    db.prepare(`
+      INSERT INTO user_preferences (preference_key, preference_value)
+      VALUES (?, ?)
+      ON CONFLICT(preference_key) DO UPDATE SET
+        preference_value = ?,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(key, value, value);
+    return true;
+  } catch (error) {
+    console.error('Error setting user preference:', error);
+    throw error;
+  }
+});
+
+// Get trending models (most printed recently)
+ipcMain.handle('get-trending-models', async (event, days = 30, limit = 20) => {
+  try {
+    const models = db.prepare(`
+      SELECT m.*, COUNT(ph.id) as print_count
+      FROM models m
+      JOIN print_history ph ON m.id = ph.model_id
+      WHERE ph.print_date >= date('now', '-${days} days')
+      GROUP BY m.id
+      ORDER BY print_count DESC
+      LIMIT ?
+    `).all(limit);
+    return models;
+  } catch (error) {
+    console.error('Error getting trending models:', error);
+    throw error;
   }
 });

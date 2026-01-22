@@ -392,14 +392,63 @@
   window.electron.pong = function() {
     window.electron.send('pong');
   };
-  
+
+  // NEW FEATURES: Event listeners for enhanced functionality
+  window.electron.onOpenSmartCollections = function(callback) {
+    window.electron.on('open-smart-collections', callback);
+  };
+
+  window.electron.onFileWatcherScan = function(callback) {
+    window.electron.on('file-watcher-scan', (event, path) => callback(path));
+  };
+
+  window.electron.onOpenPrintQueue = function(callback) {
+    window.electron.on('open-print-queue', callback);
+  };
+
+  window.electron.onOpenPrintHistory = function(callback) {
+    window.electron.on('open-print-history', callback);
+  };
+
+  window.electron.onOpenRecentModels = function(callback) {
+    window.electron.on('open-recent-models', callback);
+  };
+
+  window.electron.onOpenFavorites = function(callback) {
+    window.electron.on('open-favorites', callback);
+  };
+
+  window.electron.onOpenCustomFields = function(callback) {
+    window.electron.on('open-custom-fields', callback);
+  };
+
+  window.electron.onOpenBulkRename = function(callback) {
+    window.electron.on('open-bulk-rename', callback);
+  };
+
+  window.electron.onOpenCollectionExport = function(callback) {
+    window.electron.on('open-collection-export', callback);
+  };
+
+  window.electron.onOpenCollectionImport = function(callback) {
+    window.electron.on('open-collection-import', callback);
+  };
+
+  window.electron.onOpenSavedSearches = function(callback) {
+    window.electron.on('open-saved-searches', callback);
+  };
+
+  window.electron.onOpenStatistics = function(callback) {
+    window.electron.on('open-statistics', callback);
+  };
+
   // Copy over any other methods from original that we haven't overridden
   Object.keys(originalElectron).forEach(key => {
     if (!window.electron[key] && typeof originalElectron[key] === 'function') {
       window.electron[key] = originalElectron[key];
     }
   });
-  
+
   // Connect when script loads
   connect();
 })();

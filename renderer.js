@@ -12438,6 +12438,43 @@ function createModelItem(model, viewMode = null) {
     item.classList.add('selected');
   }
 
+  // FEATURE 11: Multi-select checkbox
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'model-checkbox';
+  checkbox.dataset.modelId = model.id;
+  checkbox.addEventListener('change', (e) => {
+    e.stopPropagation();
+    if (typeof toggleModelSelection === 'function') {
+      toggleModelSelection(model.id, checkbox);
+    }
+  });
+  checkbox.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent triggering file item click
+  });
+  item.appendChild(checkbox);
+
+  // FEATURE 11: Group membership indicator (will be populated asynchronously)
+  const groupIndicator = document.createElement('div');
+  groupIndicator.className = 'group-indicator';
+  groupIndicator.style.display = 'none';
+  groupIndicator.dataset.modelId = model.id;
+  item.appendChild(groupIndicator);
+
+  // Fetch group membership asynchronously (non-blocking)
+  if (model.id && typeof window.electron.getModelGroupsForModel === 'function') {
+    window.electron.getModelGroupsForModel(model.id).then(groups => {
+      if (groups && groups.length > 0) {
+        groupIndicator.textContent = '📁 ' + groups.length;
+        groupIndicator.title = 'In groups: ' + groups.map(g => g.name).join(', ');
+        groupIndicator.style.display = 'block';
+      }
+    }).catch(e => {
+      // Silently fail - group indicator is optional
+    });
+  }
+
+
   // Print status element
   const printStatus = document.createElement('div');
   printStatus.className = 'print-status' + (model.printed ? ' printed' : '');

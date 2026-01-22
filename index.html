@@ -1195,6 +1195,8 @@ docker run -d --name printventory-server -p 5000:5000 -v printventory-data:/root
   <script src="renderer.js"></script>
   <script type="module" src="slicer.js"></script>
   <script src="guide.js"></script>
+  <script src="features-ui.js"></script>
+  <script src="onboarding.js"></script>
 
   <!-- Add this template for slicer entries -->
   <template id="slicer-entry-template">
@@ -1211,6 +1213,1247 @@ docker run -d --name printventory-server -p 5000:5000 -v printventory-data:/root
       </div>
     </div>
   </template>
+
+  <!-- NEW FEATURES: Enhanced UI Dialogs -->
+
+  <!-- FEATURE 1: Smart Collections Dialog -->
+  <dialog id="smart-collections-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Smart Collections</h3>
+      <div class="smart-collections-container">
+        <div class="collections-sidebar">
+          <button type="button" id="new-smart-collection-btn" class="action-button">+ New Collection</button>
+          <div id="collections-list" class="collections-list"></div>
+        </div>
+        <div class="collection-content">
+          <div id="collection-editor" class="collection-editor" style="display: none;">
+            <input type="text" id="collection-name" placeholder="Collection Name" required>
+            <textarea id="collection-description" placeholder="Description (optional)" rows="2"></textarea>
+            <div class="collection-icon-color">
+              <input type="text" id="collection-icon" placeholder="Icon (emoji)" maxlength="2">
+              <input type="color" id="collection-color" value="#4CAF50">
+            </div>
+            <h4>Rules</h4>
+            <div id="collection-rules" class="collection-rules"></div>
+            <button type="button" id="add-rule-btn" class="action-button">+ Add Rule</button>
+            <div class="dialog-buttons">
+              <button type="button" id="save-collection-btn" class="action-button">Save Collection</button>
+              <button type="button" id="delete-collection-btn" class="danger-button">Delete</button>
+            </div>
+          </div>
+          <div id="collection-viewer" class="collection-viewer"></div>
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 2: File Watcher Dialog -->
+  <dialog id="file-watcher-dialog" class="modal">
+    <form method="dialog">
+      <h3>File Watcher Settings</h3>
+      <p>Monitor directories for new 3D model files and automatically scan them.</p>
+      <button type="button" id="add-watched-dir-btn" class="action-button">+ Add Directory</button>
+      <div id="watched-directories-list" class="watched-dirs-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 3: Print Queue Dialog -->
+  <dialog id="print-queue-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Print Queue</h3>
+      <p>Manage your print queue by dragging to reorder items.</p>
+      <div id="print-queue-list" class="print-queue-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 3: Print History Dialog -->
+  <dialog id="print-history-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Print History</h3>
+      <div class="print-history-stats">
+        <div class="stat-card">
+          <h4 id="total-prints-stat">0</h4>
+          <p>Total Prints</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="success-rate-stat">0%</h4>
+          <p>Success Rate</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="avg-rating-stat">0</h4>
+          <p>Avg Rating</p>
+        </div>
+      </div>
+      <div id="print-history-list" class="print-history-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 3: Mark as Printed Dialog -->
+  <dialog id="mark-printed-dialog" class="modal">
+    <form method="dialog">
+      <h3>Mark as Printed</h3>
+      <input type="hidden" id="printed-model-id">
+      <div class="form-group">
+        <label for="print-duration">Duration (hours:minutes):</label>
+        <input type="text" id="print-duration" placeholder="2:30">
+      </div>
+      <div class="form-group">
+        <label for="print-material">Material Used (grams):</label>
+        <input type="number" id="print-material" placeholder="25.5" step="0.1">
+      </div>
+      <div class="form-group">
+        <label for="print-success">Success:</label>
+        <select id="print-success">
+          <option value="1">Successful</option>
+          <option value="0">Failed</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="print-rating">Rating:</label>
+        <div class="rating-input">
+          <span class="star" data-rating="1">☆</span>
+          <span class="star" data-rating="2">☆</span>
+          <span class="star" data-rating="3">☆</span>
+          <span class="star" data-rating="4">☆</span>
+          <span class="star" data-rating="5">☆</span>
+        </div>
+        <input type="hidden" id="print-rating" value="0">
+      </div>
+      <div class="form-group">
+        <label for="print-notes">Notes:</label>
+        <textarea id="print-notes" rows="3" placeholder="Print notes..."></textarea>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-print-history-btn">Save</button>
+        <button type="button" id="cancel-print-history-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 4: Statistics Dashboard Dialog -->
+  <dialog id="statistics-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Statistics Dashboard</h3>
+      <div class="statistics-grid">
+        <div class="stat-card">
+          <h4 id="stat-total-models">0</h4>
+          <p>Total Models</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-total-designers">0</h4>
+          <p>Designers</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-total-tags">0</h4>
+          <p>Tags</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-total-size">0 GB</h4>
+          <p>Total Size</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-printed-ratio">0%</h4>
+          <p>Printed</p>
+        </div>
+        <div class="stat-card">
+          <h4 id="stat-favorites">0</h4>
+          <p>Favorites</p>
+        </div>
+      </div>
+      <div class="statistics-details">
+        <div class="stat-section">
+          <h4>Top 10 Designers</h4>
+          <div id="top-designers-list" class="top-list"></div>
+        </div>
+        <div class="stat-section">
+          <h4>Top 10 Tags</h4>
+          <div id="top-tags-list" class="top-list"></div>
+        </div>
+        <div class="stat-section">
+          <h4>File Types</h4>
+          <div id="file-types-chart" class="chart"></div>
+        </div>
+        <div class="stat-section">
+          <h4>Models Added (Last 12 Months)</h4>
+          <div id="models-by-month-chart" class="chart"></div>
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 5: Favorites View Dialog -->
+  <dialog id="favorites-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Favorites</h3>
+      <div id="favorites-grid" class="favorites-grid"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 6: Custom Fields Manager Dialog -->
+  <dialog id="custom-fields-dialog" class="modal">
+    <form method="dialog">
+      <h3>Custom Fields Manager</h3>
+      <div class="form-group">
+        <button type="button" id="new-custom-field-btn" class="action-button">+ New Field</button>
+      </div>
+      <div id="custom-fields-list" class="custom-fields-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 6: New/Edit Custom Field Dialog -->
+  <dialog id="edit-custom-field-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="custom-field-dialog-title">New Custom Field</h3>
+      <input type="hidden" id="custom-field-id">
+      <div class="form-group">
+        <label for="custom-field-name">Field Name:</label>
+        <input type="text" id="custom-field-name" required>
+      </div>
+      <div class="form-group">
+        <label for="custom-field-type">Field Type:</label>
+        <select id="custom-field-type">
+          <option value="text">Text</option>
+          <option value="number">Number</option>
+          <option value="date">Date</option>
+          <option value="boolean">Boolean</option>
+          <option value="select">Select (Dropdown)</option>
+        </select>
+      </div>
+      <div class="form-group" id="custom-field-options-group" style="display: none;">
+        <label for="custom-field-options">Options (comma-separated):</label>
+        <input type="text" id="custom-field-options" placeholder="Option1, Option2, Option3">
+      </div>
+      <div class="form-group">
+        <label for="custom-field-default">Default Value:</label>
+        <input type="text" id="custom-field-default">
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-custom-field-btn">Save</button>
+        <button type="button" id="cancel-custom-field-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 7: Bulk Rename Dialog -->
+  <dialog id="bulk-rename-dialog" class="modal">
+    <form method="dialog">
+      <h3>Bulk Rename Tool</h3>
+      <p>Select models in multi-select mode, then use this tool to rename them.</p>
+      <div class="form-group">
+        <label for="rename-pattern">Rename Pattern:</label>
+        <input type="text" id="rename-pattern" placeholder="{designer} - {original} - {date}" value="{designer} - {original}">
+        <small>Available variables: {designer}, {original}, {index}, {date}</small>
+      </div>
+      <div class="form-group">
+        <label>Preview:</label>
+        <div id="rename-preview" class="rename-preview"></div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="button" id="apply-rename-btn" class="action-button">Apply Rename</button>
+        <button type="submit">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 8: Recent Models Dialog -->
+  <dialog id="recent-models-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Recent Models</h3>
+      <div class="form-group">
+        <button type="button" id="clear-recent-btn" class="danger-button">Clear History</button>
+      </div>
+      <div id="recent-models-grid" class="recent-models-grid"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 9: Export Collection Dialog -->
+  <dialog id="export-collection-dialog" class="modal">
+    <form method="dialog">
+      <h3>Export Collection</h3>
+      <p>Export selected models with metadata to share with others.</p>
+      <p><strong>Tip:</strong> Select models in multi-select mode before opening this dialog.</p>
+      <div class="form-group">
+        <label for="export-name">Collection Name:</label>
+        <input type="text" id="export-name" placeholder="My Collection" required>
+      </div>
+      <div class="form-group">
+        <label for="export-description">Description:</label>
+        <textarea id="export-description" rows="3" placeholder="Collection description..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="export-include-files">
+          Include model files (not just metadata)
+        </label>
+      </div>
+      <div class="dialog-buttons">
+        <button type="button" id="do-export-btn" class="action-button">Export</button>
+        <button type="submit">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 9: Import Collection Dialog -->
+  <dialog id="import-collection-dialog" class="modal">
+    <form method="dialog">
+      <h3>Import Collection</h3>
+      <p>Import a collection JSON file to add metadata to your library.</p>
+      <div class="form-group">
+        <label for="import-file-path">Collection File:</label>
+        <div class="input-with-icon">
+          <input type="text" id="import-file-path" placeholder="Select collection.json file..." readonly>
+          <button type="button" id="browse-import-btn" class="icon-button">📁</button>
+        </div>
+      </div>
+      <div id="import-results" class="import-results" style="display: none;"></div>
+      <div class="dialog-buttons">
+        <button type="button" id="do-import-btn" class="action-button">Import</button>
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 10: Saved Searches Dialog -->
+  <dialog id="saved-searches-dialog" class="modal">
+    <form method="dialog">
+      <h3>Saved Searches</h3>
+      <div class="form-group">
+        <button type="button" id="save-current-search-btn" class="action-button">+ Save Current Search</button>
+      </div>
+      <div id="saved-searches-list" class="saved-searches-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 10: Save Search Dialog -->
+  <dialog id="save-search-dialog" class="modal">
+    <form method="dialog">
+      <h3>Save Search</h3>
+      <div class="form-group">
+        <label for="search-name">Search Name:</label>
+        <input type="text" id="search-name" placeholder="My Search" required>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="do-save-search-btn">Save</button>
+        <button type="button" id="cancel-save-search-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 11: Group Manager Dialog -->
+  <dialog id="group-manager-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Manage Groups</h3>
+      <div class="form-group">
+        <button type="button" id="create-new-group-btn" class="action-button">+ Create New Group</button>
+      </div>
+      <div id="groups-grid" class="groups-grid"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 11: Create/Edit Group Dialog -->
+  <dialog id="create-group-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="create-group-title">Create Group</h3>
+      <input type="hidden" id="edit-group-id">
+      <div class="form-group">
+        <label for="group-name">Group Name:</label>
+        <input type="text" id="group-name" placeholder="My Models" required>
+      </div>
+      <div class="form-group">
+        <label for="group-description">Description:</label>
+        <textarea id="group-description" rows="3" placeholder="Optional description"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="group-parent">Parent Group:</label>
+        <select id="group-parent">
+          <option value="">None (Top Level)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="group-thumbnail-file">Group Thumbnail:</label>
+        <input type="file" id="group-thumbnail-file" accept="image/*">
+        <div id="group-thumbnail-preview" class="thumbnail-preview"></div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-group-btn">Save</button>
+        <button type="button" id="cancel-group-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 11: Create Group from Selection Dialog -->
+  <dialog id="create-group-from-selection-dialog" class="modal">
+    <form method="dialog">
+      <h3>Create Group from Selection</h3>
+      <p><strong><span id="selected-models-count">0</span> models selected</strong></p>
+      <div class="form-group">
+        <label for="selection-group-name">Group Name:</label>
+        <input type="text" id="selection-group-name" placeholder="My Collection" required>
+      </div>
+      <div class="form-group">
+        <label for="selection-group-description">Description:</label>
+        <textarea id="selection-group-description" rows="3" placeholder="Optional description"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="selection-group-parent">Parent Group:</label>
+        <select id="selection-group-parent">
+          <option value="">None (Top Level)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="use-first-model-thumbnail">
+          Use first model's thumbnail as group thumbnail
+        </label>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="create-selection-group-btn">Create Group</button>
+        <button type="button" id="cancel-selection-group-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 11: Group Tag Manager Dialog -->
+  <dialog id="group-tag-manager-dialog" class="modal">
+    <form method="dialog">
+      <h3>Manage Group Tags</h3>
+      <p><strong>Group: <span id="tag-manager-group-name"></span></strong></p>
+      <input type="hidden" id="tag-manager-group-id">
+      <div class="form-group">
+        <label for="group-tag-input">Add Tags:</label>
+        <input type="text" id="group-tag-input" placeholder="Type tag name...">
+        <div id="group-tag-suggestions" class="tag-suggestions"></div>
+      </div>
+      <div class="form-group">
+        <label>Current Tags:</label>
+        <div id="group-current-tags" class="tag-list"></div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 11: Hierarchical Search Dialog -->
+  <dialog id="hierarchical-search-dialog" class="modal">
+    <form method="dialog">
+      <h3>Hierarchical Search</h3>
+      <div class="form-group">
+        <label for="hier-search-query">Search Query:</label>
+        <input type="text" id="hier-search-query" placeholder="Search models, groups, and tags...">
+      </div>
+      <div class="form-group">
+        <label>Search In:</label>
+        <label><input type="checkbox" id="search-models" checked> Models</label>
+        <label><input type="checkbox" id="search-groups" checked> Groups</label>
+        <label><input type="checkbox" id="search-tags" checked> Tags</label>
+      </div>
+      <div class="form-group">
+        <button type="button" id="do-hierarchical-search-btn" class="action-button">Search</button>
+      </div>
+      <div id="hierarchical-search-results" class="search-results"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ========================================================================
+       PRIORITY FEATURES DIALOGS
+       ======================================================================== -->
+
+  <!-- FEATURE 12: Filament Inventory Manager -->
+  <dialog id="filament-inventory-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Filament Inventory</h3>
+      <div class="form-group">
+        <button type="button" id="add-spool-btn" class="action-button">+ Add Spool</button>
+        <button type="button" id="low-stock-alert-btn" class="secondary-button">🔔 Low Stock</button>
+        <button type="button" id="filament-stats-btn" class="secondary-button">📊 Statistics</button>
+      </div>
+      <div id="spools-grid" class="spools-grid"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 12: Add/Edit Spool Dialog -->
+  <dialog id="add-spool-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="spool-dialog-title">Add Filament Spool</h3>
+      <input type="hidden" id="edit-spool-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="spool-brand">Brand: *</label>
+          <input type="text" id="spool-brand" placeholder="Hatchbox, eSun, etc." required>
+        </div>
+        <div class="form-group">
+          <label for="spool-material">Material: *</label>
+          <select id="spool-material" required>
+            <option value="">Select...</option>
+            <option value="PLA">PLA</option>
+            <option value="PETG">PETG</option>
+            <option value="ABS">ABS</option>
+            <option value="TPU">TPU</option>
+            <option value="Nylon">Nylon</option>
+            <option value="ASA">ASA</option>
+            <option value="PC">Polycarbonate</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="spool-color">Color: *</label>
+          <input type="text" id="spool-color" placeholder="Red, Blue, Black, etc." required>
+        </div>
+        <div class="form-group">
+          <label for="spool-diameter">Diameter (mm):</label>
+          <select id="spool-diameter">
+            <option value="1.75">1.75mm</option>
+            <option value="2.85">2.85mm</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="spool-weight-total">Total Weight (g): *</label>
+          <input type="number" id="spool-weight-total" placeholder="1000" required>
+        </div>
+        <div class="form-group">
+          <label for="spool-weight-remaining">Remaining (g):</label>
+          <input type="number" id="spool-weight-remaining" placeholder="1000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="spool-cost">Cost ($):</label>
+          <input type="number" step="0.01" id="spool-cost" placeholder="19.99">
+        </div>
+        <div class="form-group">
+          <label for="spool-purchase-date">Purchase Date:</label>
+          <input type="date" id="spool-purchase-date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="spool-location">Storage Location:</label>
+        <input type="text" id="spool-location" placeholder="Shelf A, Drawer 3, etc.">
+      </div>
+      <div class="form-group">
+        <label for="spool-barcode">Barcode/QR Code:</label>
+        <input type="text" id="spool-barcode" placeholder="Optional unique identifier">
+      </div>
+      <div class="form-group">
+        <label for="spool-notes">Notes:</label>
+        <textarea id="spool-notes" rows="3" placeholder="Any additional notes..."></textarea>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-spool-btn">Save</button>
+        <button type="button" id="cancel-spool-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 12: Filament Statistics Dialog -->
+  <dialog id="filament-stats-dialog" class="modal">
+    <form method="dialog">
+      <h3>Filament Statistics</h3>
+      <div id="filament-stats-content" class="stats-content"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 13: Cost Tracking Dashboard -->
+  <dialog id="cost-tracking-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Cost Tracking</h3>
+      <div class="form-group">
+        <button type="button" id="cost-settings-btn" class="secondary-button">⚙️ Settings</button>
+        <select id="cost-timerange">
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
+          <option value="all">All Time</option>
+        </select>
+      </div>
+      <div id="cost-stats-grid" class="stats-grid"></div>
+      <div id="cost-chart-container"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 13: Cost Settings Dialog -->
+  <dialog id="cost-settings-dialog" class="modal">
+    <form method="dialog">
+      <h3>Cost Settings</h3>
+      <div class="form-group">
+        <label for="electricity-rate">Electricity Rate (per kWh):</label>
+        <input type="number" step="0.01" id="electricity-rate" placeholder="0.12">
+      </div>
+      <div class="form-group">
+        <label for="currency-select">Currency:</label>
+        <select id="currency-select">
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+          <option value="GBP">GBP (£)</option>
+          <option value="CAD">CAD ($)</option>
+          <option value="AUD">AUD ($)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="printer-wattage">Printer Wattage (W):</label>
+        <input type="number" id="printer-wattage" placeholder="200">
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-cost-settings-btn">Save</button>
+        <button type="button" id="cancel-cost-settings-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 14: Slicer Profiles Manager -->
+  <dialog id="slicer-profiles-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Slicer Profiles</h3>
+      <div class="form-group">
+        <button type="button" id="add-slicer-profile-btn" class="action-button">+ Add Profile</button>
+        <select id="filter-slicer">
+          <option value="">All Slicers</option>
+        </select>
+      </div>
+      <div id="slicer-profiles-list" class="profiles-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 14: Add/Edit Slicer Profile -->
+  <dialog id="add-slicer-profile-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="profile-dialog-title">Add Slicer Profile</h3>
+      <input type="hidden" id="edit-profile-id">
+      <div class="form-group">
+        <label for="profile-name">Profile Name: *</label>
+        <input type="text" id="profile-name" placeholder="PLA Standard" required>
+      </div>
+      <div class="form-group">
+        <label for="profile-slicer">Slicer: *</label>
+        <select id="profile-slicer" required></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="profile-quality">Quality:</label>
+          <select id="profile-quality">
+            <option value="draft">Draft</option>
+            <option value="standard">Standard</option>
+            <option value="fine">Fine</option>
+            <option value="ultra">Ultra Fine</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="profile-material">Material:</label>
+          <select id="profile-material">
+            <option value="PLA">PLA</option>
+            <option value="PETG">PETG</option>
+            <option value="ABS">ABS</option>
+            <option value="TPU">TPU</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="profile-layer-height">Layer Height (mm):</label>
+          <input type="number" step="0.01" id="profile-layer-height" placeholder="0.2">
+        </div>
+        <div class="form-group">
+          <label for="profile-infill">Infill (%):</label>
+          <input type="number" id="profile-infill" placeholder="20">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="profile-supports">
+          Requires Supports
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="profile-path">Profile File Path:</label>
+        <input type="text" id="profile-path" placeholder="/path/to/profile.ini">
+      </div>
+      <div class="form-group">
+        <label for="profile-notes">Notes:</label>
+        <textarea id="profile-notes" rows="3"></textarea>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-profile-btn">Save</button>
+        <button type="button" id="cancel-profile-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 15: Print Calendar -->
+  <dialog id="print-calendar-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Print Calendar</h3>
+      <div class="form-group">
+        <button type="button" id="schedule-print-btn" class="action-button">+ Schedule Print</button>
+        <button type="button" id="view-projects-btn" class="secondary-button">📋 Projects</button>
+      </div>
+      <div id="calendar-container" class="calendar-container"></div>
+      <div id="scheduled-prints-list" class="scheduled-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 15: Schedule Print Dialog -->
+  <dialog id="schedule-print-dialog" class="modal">
+    <form method="dialog">
+      <h3>Schedule Print</h3>
+      <input type="hidden" id="edit-schedule-id">
+      <div class="form-group">
+        <label for="schedule-model">Model: *</label>
+        <select id="schedule-model" required></select>
+      </div>
+      <div class="form-group">
+        <label for="schedule-date">Scheduled Date: *</label>
+        <input type="date" id="schedule-date" required>
+      </div>
+      <div class="form-group">
+        <label for="schedule-deadline">Deadline:</label>
+        <input type="date" id="schedule-deadline">
+      </div>
+      <div class="form-group">
+        <label for="schedule-priority">Priority:</label>
+        <select id="schedule-priority">
+          <option value="low">Low</option>
+          <option value="normal" selected>Normal</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="schedule-notes">Notes:</label>
+        <textarea id="schedule-notes" rows="3"></textarea>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-schedule-btn">Schedule</button>
+        <button type="button" id="cancel-schedule-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 15: Print Projects Manager -->
+  <dialog id="print-projects-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Print Projects</h3>
+      <div class="form-group">
+        <button type="button" id="create-project-btn" class="action-button">+ Create Project</button>
+      </div>
+      <div id="projects-list" class="projects-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 15: Create/Edit Project Dialog -->
+  <dialog id="create-project-dialog" class="modal">
+    <form method="dialog">
+      <h3 id="project-dialog-title">Create Project</h3>
+      <input type="hidden" id="edit-project-id">
+      <div class="form-group">
+        <label for="project-name">Project Name: *</label>
+        <input type="text" id="project-name" placeholder="Multi-part Assembly" required>
+      </div>
+      <div class="form-group">
+        <label for="project-description">Description:</label>
+        <textarea id="project-description" rows="3" placeholder="Project details..."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="project-deadline">Deadline:</label>
+        <input type="date" id="project-deadline">
+      </div>
+      <div class="form-group">
+        <label for="project-status">Status:</label>
+        <select id="project-status">
+          <option value="active">Active</option>
+          <option value="on-hold">On Hold</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit" id="save-project-btn">Save</button>
+        <button type="button" id="cancel-project-btn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 16: Community Sources Manager -->
+  <dialog id="community-sources-dialog" class="modal">
+    <form method="dialog">
+      <h3>Community Platform Integration</h3>
+      <div class="form-group">
+        <button type="button" id="add-community-source-btn" class="action-button">+ Add Platform</button>
+        <button type="button" id="check-updates-btn" class="secondary-button">🔄 Check for Updates</button>
+      </div>
+      <div id="community-sources-list" class="sources-list"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 17: Model Version Control -->
+  <dialog id="version-control-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Version Control: <span id="version-model-name"></span></h3>
+      <input type="hidden" id="version-model-id">
+      <div class="form-group">
+        <button type="button" id="create-version-btn" class="action-button">+ New Version</button>
+        <button type="button" id="compare-versions-btn" class="secondary-button">⚖️ Compare</button>
+      </div>
+      <div id="versions-timeline" class="versions-timeline"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FEATURE 18: Smart Recommendations -->
+  <dialog id="recommendations-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>Smart Recommendations</h3>
+      <div class="recommendations-tabs">
+        <button type="button" class="tab-btn active" data-tab="similar">Similar Models</button>
+        <button type="button" class="tab-btn" data-tab="quick">Quick Wins</button>
+        <button type="button" class="tab-btn" data-tab="filament">Use This Filament</button>
+        <button type="button" class="tab-btn" data-tab="trending">Trending</button>
+      </div>
+      <div id="recommendations-content" class="recommendations-content"></div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+
+  <!-- ========================================================================
+       ONBOARDING & TUTORIAL SYSTEM
+       ======================================================================== -->
+
+  <!-- Welcome Wizard - Multi-step onboarding -->
+  <dialog id="welcome-wizard-dialog" class="modal large-modal wizard-modal">
+    <div class="wizard-container">
+      <div class="wizard-sidebar">
+        <h2>Welcome to Printventory</h2>
+        <div class="wizard-steps">
+          <div class="wizard-step active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-name">Welcome</div>
+          </div>
+          <div class="wizard-step" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-name">Getting Started</div>
+          </div>
+          <div class="wizard-step" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-name">Core Features</div>
+          </div>
+          <div class="wizard-step" data-step="4">
+            <div class="step-number">4</div>
+            <div class="step-name">Advanced Tools</div>
+          </div>
+          <div class="wizard-step" data-step="5">
+            <div class="step-number">5</div>
+            <div class="step-name">Get Started!</div>
+          </div>
+        </div>
+        <div class="wizard-progress">
+          <div class="wizard-progress-bar" style="width: 20%"></div>
+        </div>
+      </div>
+
+      <div class="wizard-content">
+        <!-- Step 1: Welcome -->
+        <div class="wizard-page active" data-page="1">
+          <h1>🎉 Welcome to Printventory!</h1>
+          <p class="wizard-subtitle">Your complete 3D printing model management solution</p>
+
+          <div class="welcome-features">
+            <div class="welcome-feature-card">
+              <div class="feature-icon">📦</div>
+              <h3>Organize Everything</h3>
+              <p>Manage thousands of 3D models with powerful tagging, collections, and search</p>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="feature-icon">🎨</div>
+              <h3>Beautiful Previews</h3>
+              <p>Automatic 3D model thumbnails with multiple viewing angles</p>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="feature-icon">💰</div>
+              <h3>Track Everything</h3>
+              <p>Filament inventory, print costs, and project management</p>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="feature-icon">🚀</div>
+              <h3>Smart Features</h3>
+              <p>AI recommendations, version control, and automated workflows</p>
+            </div>
+          </div>
+
+          <div class="wizard-tip">
+            <strong>💡 Tip:</strong> This wizard will guide you through the basics. You can skip it and access tutorials anytime from the Help menu!
+          </div>
+        </div>
+
+        <!-- Step 2: Getting Started -->
+        <div class="wizard-page" data-page="2">
+          <h1>📁 Let's Add Your Models</h1>
+          <p class="wizard-subtitle">Choose how you'd like to organize your 3D printing library</p>
+
+          <div class="setup-option-cards">
+            <div class="setup-option-card" onclick="setupQuickScan()">
+              <div class="option-icon">⚡</div>
+              <h3>Quick Scan</h3>
+              <p>Scan a folder right now and start exploring immediately</p>
+              <button class="action-button">Scan Folder</button>
+            </div>
+
+            <div class="setup-option-card" onclick="setupSTLHome()">
+              <div class="option-icon">🏠</div>
+              <h3>Set STL Home</h3>
+              <p>Configure your main models folder for automatic monitoring</p>
+              <button class="action-button">Configure</button>
+            </div>
+
+            <div class="setup-option-card">
+              <div class="option-icon">📚</div>
+              <h3>Import Collection</h3>
+              <p>Already have a Printventory collection? Import it here</p>
+              <button class="action-button" onclick="setupImportCollection()">Import</button>
+            </div>
+
+            <div class="setup-option-card">
+              <div class="option-icon">⏭️</div>
+              <h3>Skip for Now</h3>
+              <p>I'll add models later and explore the features first</p>
+              <button class="secondary-button">Skip</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Core Features -->
+        <div class="wizard-page" data-page="3">
+          <h1>🎯 Core Features Overview</h1>
+          <p class="wizard-subtitle">Master these essentials to get the most out of Printventory</p>
+
+          <div class="features-list">
+            <div class="feature-item">
+              <div class="feature-item-icon">🔍</div>
+              <div class="feature-item-content">
+                <h3>Smart Search & Filter</h3>
+                <p>Find any model instantly with powerful search, filters by designer, tags, file type, print status, and more</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>F</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">🏷️</div>
+              <div class="feature-item-content">
+                <h3>Tags & Collections</h3>
+                <p>Organize with tags, create smart collections that auto-update, and group related models together</p>
+                <div class="feature-shortcut">Menu: Collections → Smart Collections</div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">📋</div>
+              <div class="feature-item-content">
+                <h3>Print Queue & History</h3>
+                <p>Queue up models to print, track what you've printed, and record success rates and ratings</p>
+                <div class="feature-shortcut">Menu: Print → Print Queue</div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">⭐</div>
+              <div class="feature-item-content">
+                <h3>Favorites & Recent</h3>
+                <p>Bookmark your go-to models and quickly access recently viewed items</p>
+                <div class="feature-shortcut">Menu: Collections → Favorites</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Advanced Tools -->
+        <div class="wizard-page" data-page="4">
+          <h1>🚀 Advanced Features</h1>
+          <p class="wizard-subtitle">Power user tools to supercharge your workflow</p>
+
+          <div class="features-list">
+            <div class="feature-item">
+              <div class="feature-item-icon">🧵</div>
+              <div class="feature-item-content">
+                <h3>Filament Inventory</h3>
+                <p>Track all your spools, monitor usage, get low stock alerts, and calculate print costs automatically</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">💰</div>
+              <div class="feature-item-content">
+                <h3>Cost Tracking</h3>
+                <p>Automatic cost calculation for every print including filament and electricity costs</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">📅</div>
+              <div class="feature-item-content">
+                <h3>Print Calendar & Projects</h3>
+                <p>Schedule prints with deadlines, manage multi-part projects, and track completion progress</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">📁</div>
+              <div class="feature-item-content">
+                <h3>Model Groups</h3>
+                <p>Create hierarchical groups, assign thumbnails to folders, and organize collections your way</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">🎯</div>
+              <div class="feature-item-content">
+                <h3>Smart Recommendations</h3>
+                <p>Get Netflix-style suggestions for similar models, quick wins, and trending prints in your library</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">⚙️</div>
+              <div class="feature-item-content">
+                <h3>Slicer Integration</h3>
+                <p>Save and reuse slicer profiles, remember settings per model, and track G-code locations</p>
+                <div class="feature-shortcut">Menu: Print → Slicer Profiles</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: Finish -->
+        <div class="wizard-page" data-page="5">
+          <h1>🎊 You're All Set!</h1>
+          <p class="wizard-subtitle">Ready to start organizing your 3D printing library</p>
+
+          <div class="completion-cards">
+            <div class="completion-card">
+              <h3>📖 Quick Resources</h3>
+              <ul>
+                <li><a href="#" onclick="startFeatureTour(); return false;">Take the Feature Tour</a></li>
+                <li><a href="#" onclick="openHelpDocumentation(); return false;">Browse Documentation</a></li>
+                <li><a href="#" onclick="openKeyboardShortcuts(); return false;">View Keyboard Shortcuts</a></li>
+                <li><a href="https://printventory.com/tutorials" target="_blank">Watch Video Tutorials</a></li>
+              </ul>
+            </div>
+
+            <div class="completion-card">
+              <h3>💬 Get Help & Support</h3>
+              <ul>
+                <li><a href="https://discord.gg/JXcZHT77ua" target="_blank">Join Discord Community</a></li>
+                <li><a href="https://github.com/TechJeeper/Printventory" target="_blank">GitHub Repository</a></li>
+                <li><a href="https://printventory.com/support.html" target="_blank">Support & FAQ</a></li>
+                <li><a href="https://patreon.com/Printventory" target="_blank">Support Development</a></li>
+              </ul>
+            </div>
+
+            <div class="completion-card">
+              <h3>⚡ Pro Tips</h3>
+              <ul>
+                <li>Use <kbd>Ctrl</kbd> + <kbd>Click</kbd> for multi-select</li>
+                <li>Right-click models for quick actions</li>
+                <li>Press <kbd>F1</kbd> to reopen this wizard</li>
+                <li>Enable File Watcher for automatic scanning</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="wizard-final-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="dont-show-wizard-again">
+              Don't show this wizard again
+            </label>
+          </div>
+        </div>
+
+        <!-- Wizard Navigation -->
+        <div class="wizard-navigation">
+          <button id="wizard-prev-btn" class="secondary-button" disabled>Previous</button>
+          <button id="wizard-skip-btn" class="secondary-button">Skip Tutorial</button>
+          <button id="wizard-next-btn" class="action-button">Next</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Feature Tour Overlay -->
+  <div id="feature-tour-overlay" class="tour-overlay" style="display: none;">
+    <div class="tour-backdrop"></div>
+    <div class="tour-spotlight"></div>
+    <div class="tour-tooltip">
+      <div class="tour-tooltip-header">
+        <h3 id="tour-tooltip-title"></h3>
+        <button class="tour-close-btn" onclick="endFeatureTour()">×</button>
+      </div>
+      <div class="tour-tooltip-content" id="tour-tooltip-content"></div>
+      <div class="tour-tooltip-footer">
+        <span class="tour-progress" id="tour-progress">1 / 10</span>
+        <div class="tour-nav-buttons">
+          <button class="secondary-button" id="tour-prev-btn" onclick="previousTourStep()">Previous</button>
+          <button class="action-button" id="tour-next-btn" onclick="nextTourStep()">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Documentation Panel -->
+  <dialog id="help-documentation-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>📚 Help & Documentation</h3>
+      <div class="help-container">
+        <div class="help-sidebar">
+          <input type="text" id="help-search" placeholder="Search documentation..." class="help-search-input">
+          <div class="help-categories">
+            <div class="help-category active" data-category="getting-started">Getting Started</div>
+            <div class="help-category" data-category="organizing">Organizing Models</div>
+            <div class="help-category" data-category="printing">Printing & Queue</div>
+            <div class="help-category" data-category="inventory">Inventory & Costs</div>
+            <div class="help-category" data-category="advanced">Advanced Features</div>
+            <div class="help-category" data-category="shortcuts">Keyboard Shortcuts</div>
+            <div class="help-category" data-category="troubleshooting">Troubleshooting</div>
+          </div>
+        </div>
+        <div class="help-content" id="help-content-area">
+          <!-- Content loaded dynamically -->
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Keyboard Shortcuts Quick Reference -->
+  <dialog id="keyboard-shortcuts-dialog" class="modal">
+    <form method="dialog">
+      <h3>⌨️ Keyboard Shortcuts</h3>
+      <div class="shortcuts-grid">
+        <div class="shortcut-section">
+          <h4>General</h4>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>F</kbd>
+            <span>Focus Search</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>F1</kbd>
+            <span>Welcome Wizard</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>F5</kbd>
+            <span>Refresh View</span>
+          </div>
+        </div>
+
+        <div class="shortcut-section">
+          <h4>Collections</h4>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>
+            <span>Model Groups</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>G</kbd>
+            <span>Create Group</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>H</kbd>
+            <span>Hierarchical Search</span>
+          </div>
+        </div>
+
+        <div class="shortcut-section">
+          <h4>Inventory</h4>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
+            <span>Filament Inventory</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd>
+            <span>Cost Tracking</span>
+          </div>
+        </div>
+
+        <div class="shortcut-section">
+          <h4>Printing</h4>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>
+            <span>Print Calendar</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>
+            <span>Recommendations</span>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
   <script>
     document.getElementById('dismiss-welcome')?.addEventListener('click', () => {
       const welcomeDialog = document.getElementById('welcome-message');

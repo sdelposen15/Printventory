@@ -187,7 +187,175 @@ contextBridge.exposeInMainWorld('electron', {
   rollbackTransaction: () => ipcRenderer.invoke('database:rollback-transaction'),
   getAllModelReferences: () => ipcRenderer.invoke('get-all-model-references'),
   showInputDialog: (options) => ipcRenderer.invoke('show-input-dialog', options),
-  pull3MFMetadata: (filePaths) => ipcRenderer.invoke('pull-3mf-metadata', filePaths)
+  pull3MFMetadata: (filePaths) => ipcRenderer.invoke('pull-3mf-metadata', filePaths),
+
+  // NEW FEATURES: Enhanced functionality
+  // FEATURE 1: Smart Collections
+  getSmartCollections: () => ipcRenderer.invoke('get-smart-collections'),
+  getSmartCollection: (id) => ipcRenderer.invoke('get-smart-collection', id),
+  saveSmartCollection: (collection) => ipcRenderer.invoke('save-smart-collection', collection),
+  deleteSmartCollection: (id) => ipcRenderer.invoke('delete-smart-collection', id),
+  getSmartCollectionModels: (id) => ipcRenderer.invoke('get-smart-collection-models', id),
+  onOpenSmartCollections: (callback) => ipcRenderer.on('open-smart-collections', callback),
+
+  // FEATURE 2: File Watcher
+  getWatchedDirectories: () => ipcRenderer.invoke('get-watched-directories'),
+  addWatchedDirectory: (path) => ipcRenderer.invoke('add-watched-directory', path),
+  removeWatchedDirectory: (id) => ipcRenderer.invoke('remove-watched-directory', id),
+  toggleWatchedDirectory: (id, enabled) => ipcRenderer.invoke('toggle-watched-directory', id, enabled),
+  onFileWatcherScan: (callback) => ipcRenderer.on('file-watcher-scan', (event, path) => callback(path)),
+
+  // FEATURE 3: Print Queue & History
+  getPrintQueue: () => ipcRenderer.invoke('get-print-queue'),
+  addToPrintQueue: (modelId, priority, notes) => ipcRenderer.invoke('add-to-print-queue', modelId, priority, notes),
+  removeFromPrintQueue: (id) => ipcRenderer.invoke('remove-from-print-queue', id),
+  reorderPrintQueue: (items) => ipcRenderer.invoke('reorder-print-queue', items),
+  getPrintHistory: (modelId) => ipcRenderer.invoke('get-print-history', modelId),
+  addToPrintHistory: (data) => ipcRenderer.invoke('add-to-print-history', data),
+  markAsPrinted: (modelId) => ipcRenderer.invoke('mark-as-printed', modelId),
+  onOpenPrintQueue: (callback) => ipcRenderer.on('open-print-queue', callback),
+  onOpenPrintHistory: (callback) => ipcRenderer.on('open-print-history', callback),
+
+  // FEATURE 4: Recent Models (History)
+  getRecentModels: (limit) => ipcRenderer.invoke('get-recent-models', limit),
+  addToRecent: (modelId) => ipcRenderer.invoke('add-to-recent', modelId),
+  clearRecentModels: () => ipcRenderer.invoke('clear-recent-models'),
+  onOpenRecentModels: (callback) => ipcRenderer.on('open-recent-models', callback),
+
+  // FEATURE 5: Favorites/Bookmarks
+  getFavorites: () => ipcRenderer.invoke('get-favorites'),
+  addToFavorites: (modelId, notes) => ipcRenderer.invoke('add-to-favorites', modelId, notes),
+  removeFromFavorites: (modelId) => ipcRenderer.invoke('remove-from-favorites', modelId),
+  isFavorite: (modelId) => ipcRenderer.invoke('is-favorite', modelId),
+  onOpenFavorites: (callback) => ipcRenderer.on('open-favorites', callback),
+
+  // FEATURE 6: Custom Metadata Fields
+  getCustomFields: () => ipcRenderer.invoke('get-custom-fields'),
+  saveCustomField: (field) => ipcRenderer.invoke('save-custom-field', field),
+  deleteCustomField: (id) => ipcRenderer.invoke('delete-custom-field', id),
+  getModelCustomFields: (modelId) => ipcRenderer.invoke('get-model-custom-fields', modelId),
+  saveModelCustomField: (modelId, fieldId, value) => ipcRenderer.invoke('save-model-custom-field', modelId, fieldId, value),
+  onOpenCustomFields: (callback) => ipcRenderer.on('open-custom-fields', callback),
+
+  // FEATURE 7: Bulk Rename Tool
+  bulkRenameModels: (models, pattern) => ipcRenderer.invoke('bulk-rename-models', models, pattern),
+  onOpenBulkRename: (callback) => ipcRenderer.on('open-bulk-rename', callback),
+
+  // FEATURE 9: Collection Export/Import
+  exportCollection: (options) => ipcRenderer.invoke('export-collection', options),
+  importCollection: (filePath) => ipcRenderer.invoke('import-collection', filePath),
+  onOpenCollectionExport: (callback) => ipcRenderer.on('open-collection-export', callback),
+  onOpenCollectionImport: (callback) => ipcRenderer.on('open-collection-import', callback),
+
+  // FEATURE 10: Saved Searches
+  getSavedSearches: () => ipcRenderer.invoke('get-saved-searches'),
+  saveSearch: (name, filters) => ipcRenderer.invoke('save-search', name, filters),
+  deleteSavedSearch: (id) => ipcRenderer.invoke('delete-saved-search', id),
+  loadSavedSearch: (id) => ipcRenderer.invoke('load-saved-search', id),
+  onOpenSavedSearches: (callback) => ipcRenderer.on('open-saved-searches', callback),
+
+  // FEATURE 4: Statistics Dashboard
+  getStatistics: () => ipcRenderer.invoke('get-statistics'),
+  onOpenStatistics: (callback) => ipcRenderer.on('open-statistics', callback)
+
+  // FEATURE 11: Model Groups (Folders) with Images and Tags
+  getModelGroups: () => ipcRenderer.invoke('get-model-groups'),
+  getModelGroup: (id) => ipcRenderer.invoke('get-model-group', id),
+  createModelGroup: (data) => ipcRenderer.invoke('create-model-group', data),
+  updateModelGroup: (id, data) => ipcRenderer.invoke('update-model-group', id, data),
+  deleteModelGroup: (id) => ipcRenderer.invoke('delete-model-group', id),
+  addModelsToGroup: (groupId, modelIds) => ipcRenderer.invoke('add-models-to-group', groupId, modelIds),
+  removeModelsFromGroup: (groupId, modelIds) => ipcRenderer.invoke('remove-models-from-group', groupId, modelIds),
+  getModelGroupsForModel: (modelId) => ipcRenderer.invoke('get-model-groups-for-model', modelId),
+  setGroupThumbnail: (groupId, thumbnail) => ipcRenderer.invoke('set-group-thumbnail', groupId, thumbnail),
+  addTagsToGroup: (groupId, tagIds) => ipcRenderer.invoke('add-tags-to-group', groupId, tagIds),
+  removeTagsFromGroup: (groupId, tagIds) => ipcRenderer.invoke('remove-tags-from-group', groupId, tagIds),
+  getGroupTags: (groupId) => ipcRenderer.invoke('get-group-tags', groupId),
+  searchAllLevels: (searchParams) => ipcRenderer.invoke('search-all-levels', searchParams),
+  getTagHierarchy: (tagId) => ipcRenderer.invoke('get-tag-hierarchy', tagId),
+  onOpenGroupManager: (callback) => ipcRenderer.on('open-group-manager', callback),
+  onCreateGroupFromSelection: (callback) => ipcRenderer.on('create-group-from-selection', callback)
+,
+
+  // ========================================================================
+  // FEATURE 12: Filament Inventory System
+  // ========================================================================
+  getFilamentSpools: () => ipcRenderer.invoke('get-filament-spools'),
+  getFilamentSpool: (id) => ipcRenderer.invoke('get-filament-spool', id),
+  createFilamentSpool: (data) => ipcRenderer.invoke('create-filament-spool', data),
+  updateFilamentSpool: (data) => ipcRenderer.invoke('update-filament-spool', data),
+  deleteFilamentSpool: (id) => ipcRenderer.invoke('delete-filament-spool', id),
+  recordFilamentUsage: (data) => ipcRenderer.invoke('record-filament-usage', data),
+  getLowStockSpools: (threshold) => ipcRenderer.invoke('get-low-stock-spools', threshold),
+  getFilamentStatistics: () => ipcRenderer.invoke('get-filament-statistics'),
+
+  // ========================================================================
+  // FEATURE 13: Enhanced Cost Tracking
+  // ========================================================================
+  getCostSettings: () => ipcRenderer.invoke('get-cost-settings'),
+  updateCostSettings: (data) => ipcRenderer.invoke('update-cost-settings', data),
+  calculatePrintCost: (printData) => ipcRenderer.invoke('calculate-print-cost', printData),
+  savePrintCost: (data) => ipcRenderer.invoke('save-print-cost', data),
+  getCostStatistics: (timeRange) => ipcRenderer.invoke('get-cost-statistics', timeRange),
+
+  // ========================================================================
+  // FEATURE 14: Enhanced Slicer Integration
+  // ========================================================================
+  getSlicerProfiles: (slicerId) => ipcRenderer.invoke('get-slicer-profiles', slicerId),
+  createSlicerProfile: (data) => ipcRenderer.invoke('create-slicer-profile', data),
+  updateSlicerProfile: (data) => ipcRenderer.invoke('update-slicer-profile', data),
+  deleteSlicerProfile: (id) => ipcRenderer.invoke('delete-slicer-profile', id),
+  getModelSlicerSettings: (modelId) => ipcRenderer.invoke('get-model-slicer-settings', modelId),
+  saveModelSlicerSettings: (data) => ipcRenderer.invoke('save-model-slicer-settings', data),
+
+  // ========================================================================
+  // FEATURE 15: Print Scheduling & Calendar
+  // ========================================================================
+  getScheduledPrints: (filters) => ipcRenderer.invoke('get-scheduled-prints', filters),
+  createScheduledPrint: (data) => ipcRenderer.invoke('create-scheduled-print', data),
+  updateScheduledPrint: (data) => ipcRenderer.invoke('update-scheduled-print', data),
+  completeScheduledPrint: (id) => ipcRenderer.invoke('complete-scheduled-print', id),
+  deleteScheduledPrint: (id) => ipcRenderer.invoke('delete-scheduled-print', id),
+  getPrintProjects: () => ipcRenderer.invoke('get-print-projects'),
+  getPrintProject: (id) => ipcRenderer.invoke('get-print-project', id),
+  createPrintProject: (data) => ipcRenderer.invoke('create-print-project', data),
+  updatePrintProject: (data) => ipcRenderer.invoke('update-print-project', data),
+  deletePrintProject: (id) => ipcRenderer.invoke('delete-print-project', id),
+  addModelToProject: (data) => ipcRenderer.invoke('add-model-to-project', data),
+  updateProjectModel: (data) => ipcRenderer.invoke('update-project-model', data),
+  removeModelFromProject: (id) => ipcRenderer.invoke('remove-model-from-project', id),
+
+  // ========================================================================
+  // FEATURE 16: Community Platform Integration
+  // ========================================================================
+  getCommunitySources: () => ipcRenderer.invoke('get-community-sources'),
+  addCommunitySource: (data) => ipcRenderer.invoke('add-community-source', data),
+  updateCommunitySource: (data) => ipcRenderer.invoke('update-community-source', data),
+  deleteCommunitySource: (id) => ipcRenderer.invoke('delete-community-source', id),
+  linkModelToSource: (data) => ipcRenderer.invoke('link-model-to-source', data),
+  getModelSource: (modelId) => ipcRenderer.invoke('get-model-source', modelId),
+  checkModelUpdates: (modelId) => ipcRenderer.invoke('check-model-updates', modelId),
+  getModelsWithUpdates: () => ipcRenderer.invoke('get-models-with-updates'),
+
+  // ========================================================================
+  // FEATURE 17: Model Version Control
+  // ========================================================================
+  getModelVersions: (modelId) => ipcRenderer.invoke('get-model-versions', modelId),
+  createModelVersion: (data) => ipcRenderer.invoke('create-model-version', data),
+  setCurrentVersion: (versionId) => ipcRenderer.invoke('set-current-version', versionId),
+  deleteModelVersion: (versionId) => ipcRenderer.invoke('delete-model-version', versionId),
+  compareModelVersions: (version1Id, version2Id) => ipcRenderer.invoke('compare-model-versions', version1Id, version2Id),
+
+  // ========================================================================
+  // FEATURE 18: Smart Recommendations
+  // ========================================================================
+  getModelRecommendations: (modelId, limit) => ipcRenderer.invoke('get-model-recommendations', modelId, limit),
+  recordModelAssociation: (modelAId, modelBId, type) => ipcRenderer.invoke('record-model-association', modelAId, modelBId, type),
+  getQuickWins: (maxTime) => ipcRenderer.invoke('get-quick-wins', maxTime),
+  getFilamentBasedRecommendations: (spoolId) => ipcRenderer.invoke('get-filament-based-recommendations', spoolId),
+  getUserPreference: (key) => ipcRenderer.invoke('get-user-preference', key),
+  setUserPreference: (key, value) => ipcRenderer.invoke('set-user-preference', key, value),
+  getTrendingModels: (days, limit) => ipcRenderer.invoke('get-trending-models', days, limit)
 });
 
 contextBridge.exposeInMainWorld('electronAPI', {
