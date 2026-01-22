@@ -1921,7 +1921,47 @@ function createWindow() {
           label: 'Import Collection',
           click: () => mainWindow.webContents.send('open-collection-import')
         }
+        { type: 'separator' },
+        {
+          label: 'Model Groups',
+          accelerator: 'CmdOrCtrl+Shift+G',
+          click: () => mainWindow.webContents.send('open-group-manager')
+        },
+        {
+          label: 'Create Group from Selection',
+          accelerator: 'CmdOrCtrl+G',
+          click: () => mainWindow.webContents.send('create-group-from-selection')
+        },
+        {
+          label: 'Hierarchical Search',
+          accelerator: 'CmdOrCtrl+Shift+H',
+          click: () => mainWindow.webContents.send('open-hierarchical-search')
+        },
       ]
+    {
+      label: 'Inventory',
+      submenu: [
+        {
+          label: 'Filament Spools',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => mainWindow.webContents.send('open-filament-inventory')
+        },
+        {
+          label: 'Cost Tracking',
+          accelerator: 'CmdOrCtrl+Shift+C',
+          click: () => mainWindow.webContents.send('open-cost-tracking')
+        },
+        { type: 'separator' },
+        {
+          label: 'Filament Statistics',
+          click: () => mainWindow.webContents.send('open-filament-stats')
+        },
+        {
+          label: 'Low Stock Alert',
+          click: () => mainWindow.webContents.send('show-low-stock')
+        }
+      ]
+    },
     },
     {
       label: 'Print',
@@ -1938,6 +1978,21 @@ function createWindow() {
         {
           label: 'Print Roulette',
           click: () => mainWindow.webContents.send('start-print-roulette')
+        }
+        { type: 'separator' },
+        {
+          label: 'Print Calendar',
+          accelerator: 'CmdOrCtrl+Shift+P',
+          click: () => mainWindow.webContents.send('open-print-calendar')
+        },
+        {
+          label: 'Projects',
+          click: () => mainWindow.webContents.send('open-print-projects')
+        },
+        { type: 'separator' },
+        {
+          label: 'Slicer Profiles',
+          click: () => mainWindow.webContents.send('open-slicer-profiles')
         }
       ]
     },
@@ -1990,12 +2045,55 @@ function createWindow() {
           label: 'Purge Models',
           click: () => mainWindow.webContents.send('open-purge-models')
         }
+        { type: 'separator' },
+        {
+          label: 'Version Control',
+          click: () => mainWindow.webContents.send('open-version-control')
+        },
+        {
+          label: 'Community Platforms',
+          click: () => mainWindow.webContents.send('open-community-sources')
+        }
       ]
     },
     {
       label: 'Help',
       submenu: [
         {
+        {
+          label: 'Welcome Wizard',
+          accelerator: 'F1',
+          click: () => mainWindow.webContents.send('open-welcome-wizard')
+        },
+        {
+          label: 'Feature Tour',
+          click: () => mainWindow.webContents.send('start-feature-tour')
+        },
+        { type: 'separator' },
+        {
+          label: 'Quick Start Guide',
+          click: () => {
+            mainWindow.webContents.send('open-guide');
+          }
+        },
+        {
+          label: 'Video Tutorials',
+          click: async () => {
+            await shell.openExternal('https://printventory.com/tutorials');
+          }
+        },
+        {
+          label: 'Recommendations',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => mainWindow.webContents.send('open-recommendations')
+        },
+        { type: 'separator' },
+        {
+          label: 'Library Stats',
+          click: () => {
+            mainWindow.webContents.send('open-stats');
+          }
+        },
           label: 'Quick Start Guide',
           click: () => {
             mainWindow.webContents.send('open-guide');
@@ -2165,6 +2263,46 @@ function createApplicationMenu() {
         {
           label: 'Import Collection',
           click: () => mainWindow.webContents.send('open-collection-import')
+        }
+        { type: 'separator' },
+        {
+          label: 'Model Groups',
+          accelerator: 'CmdOrCtrl+Shift+G',
+          click: () => mainWindow.webContents.send('open-group-manager')
+        },
+        {
+          label: 'Create Group from Selection',
+          accelerator: 'CmdOrCtrl+G',
+          click: () => mainWindow.webContents.send('create-group-from-selection')
+        },
+        {
+          label: 'Hierarchical Search',
+          accelerator: 'CmdOrCtrl+Shift+H',
+          click: () => mainWindow.webContents.send('open-hierarchical-search')
+        },
+      ]
+    },
+    {
+      label: 'Inventory',
+      submenu: [
+        {
+          label: 'Filament Spools',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => mainWindow.webContents.send('open-filament-inventory')
+        },
+        {
+          label: 'Cost Tracking',
+          accelerator: 'CmdOrCtrl+Shift+C',
+          click: () => mainWindow.webContents.send('open-cost-tracking')
+        },
+        { type: 'separator' },
+        {
+          label: 'Filament Statistics',
+          click: () => mainWindow.webContents.send('open-filament-stats')
+        },
+        {
+          label: 'Low Stock Alert',
+          click: () => mainWindow.webContents.send('show-low-stock')
         }
       ]
     },

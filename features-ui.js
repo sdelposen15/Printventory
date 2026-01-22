@@ -2659,3 +2659,77 @@ window.showPrintCalendar = showPrintCalendar;
 window.completeScheduledPrint = completeScheduledPrint;
 window.showPrintProjects = showPrintProjects;
 window.showRecommendations = showRecommendations;
+// Complete onboarding system loaded from features-ui.js
+
+// Listen for menu events
+if (typeof window.electron !== 'undefined') {
+  window.electron.on?.('open-welcome-wizard', () => {
+    if (typeof showWelcomeWizard === 'function') showWelcomeWizard();
+  });
+
+  window.electron.on?.('start-feature-tour', () => {
+    if (typeof startFeatureTour === 'function') startFeatureTour();
+  });
+
+  window.electron.on?.('open-help-documentation', () => {
+    if (typeof openHelpDocumentation === 'function') openHelpDocumentation();
+  });
+
+  window.electron.on?.('open-keyboard-shortcuts', () => {
+    if (typeof openKeyboardShortcuts === 'function') openKeyboardShortcuts();
+  });
+
+  // Listen for all new menu items
+  window.electron.on?.('open-filament-inventory', () => {
+    if (typeof showFilamentInventory === 'function') showFilamentInventory();
+  });
+
+  window.electron.on?.('open-cost-tracking', () => {
+    if (typeof showCostTracking === 'function') showCostTracking();
+  });
+
+  window.electron.on?.('open-slicer-profiles', () => {
+    if (typeof showSlicerProfiles === 'function') showSlicerProfiles();
+  });
+
+  window.electron.on?.('open-print-calendar', () => {
+    if (typeof showPrintCalendar === 'function') showPrintCalendar();
+  });
+
+  window.electron.on?.('open-print-projects', () => {
+    if (typeof showPrintProjects === 'function') showPrintProjects();
+  });
+
+  window.electron.on?.('open-group-manager', () => {
+    if (typeof showGroupManager === 'function') showGroupManager();
+  });
+
+  window.electron.on?.('open-recommendations', () => {
+    if (typeof showRecommendations === 'function') showRecommendations();
+  });
+
+  window.electron.on?.('open-hierarchical-search', () => {
+    const dialog = document.getElementById('hierarchical-search-dialog');
+    if (dialog) dialog.showModal();
+  });
+
+  window.electron.on?.('open-filament-stats', () => {
+    if (typeof showFilamentStats === 'function') showFilamentStats();
+  });
+
+  window.electron.on?.('show-low-stock', () => {
+    if (typeof showLowStockSpools === 'function') showLowStockSpools();
+  });
+
+  window.electron.on?.('open-version-control', () => {
+    const dialog = document.getElementById('version-control-dialog');
+    if (dialog) dialog.showModal();
+  });
+
+  window.electron.on?.('open-community-sources', () => {
+    const dialog = document.getElementById('community-sources-dialog');
+    if (dialog) dialog.showModal();
+  });
+}
+
+console.log('✅ Printventory onboarding system loaded successfully');

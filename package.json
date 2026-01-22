@@ -97,6 +97,7 @@
       "bg.png",
       "search.js",
       "features-ui.js",
+      "onboarding.js",
       "scan-worker.js",
       "server-bridge.js",
       "installer.nsh",

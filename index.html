@@ -1196,6 +1196,7 @@ docker run -d --name printventory-server -p 5000:5000 -v printventory-data:/root
   <script type="module" src="slicer.js"></script>
   <script src="guide.js"></script>
   <script src="features-ui.js"></script>
+  <script src="onboarding.js"></script>
 
   <!-- Add this template for slicer entries -->
   <template id="slicer-entry-template">
@@ -2072,6 +2073,387 @@ docker run -d --name printventory-server -p 5000:5000 -v printventory-data:/root
     </form>
   </dialog>
 
+
+  <!-- ========================================================================
+       ONBOARDING & TUTORIAL SYSTEM
+       ======================================================================== -->
+
+  <!-- Welcome Wizard - Multi-step onboarding -->
+  <dialog id="welcome-wizard-dialog" class="modal large-modal wizard-modal">
+    <div class="wizard-container">
+      <div class="wizard-sidebar">
+        <h2>Welcome to Printventory</h2>
+        <div class="wizard-steps">
+          <div class="wizard-step active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-name">Welcome</div>
+          </div>
+          <div class="wizard-step" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-name">Getting Started</div>
+          </div>
+          <div class="wizard-step" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-name">Core Features</div>
+          </div>
+          <div class="wizard-step" data-step="4">
+            <div class="step-number">4</div>
+            <div class="step-name">Advanced Tools</div>
+          </div>
+          <div class="wizard-step" data-step="5">
+            <div class="step-number">5</div>
+            <div class="step-name">Get Started!</div>
+          </div>
+        </div>
+        <div class="wizard-progress">
+          <div class="wizard-progress-bar" style="width: 20%"></div>
+        </div>
+      </div>
+
+      <div class="wizard-content">
+        <!-- Step 1: Welcome -->
+        <div class="wizard-page active" data-page="1">
+          <h1>🎉 Welcome to Printventory!</h1>
+          <p class="wizard-subtitle">Your complete 3D printing model management solution</p>
+
+          <div class="welcome-features">
+            <div class="welcome-feature-card">
+              <div class="feature-icon">📦</div>
+              <h3>Organize Everything</h3>
+              <p>Manage thousands of 3D models with powerful tagging, collections, and search</p>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="feature-icon">🎨</div>
+              <h3>Beautiful Previews</h3>
+              <p>Automatic 3D model thumbnails with multiple viewing angles</p>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="feature-icon">💰</div>
+              <h3>Track Everything</h3>
+              <p>Filament inventory, print costs, and project management</p>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="feature-icon">🚀</div>
+              <h3>Smart Features</h3>
+              <p>AI recommendations, version control, and automated workflows</p>
+            </div>
+          </div>
+
+          <div class="wizard-tip">
+            <strong>💡 Tip:</strong> This wizard will guide you through the basics. You can skip it and access tutorials anytime from the Help menu!
+          </div>
+        </div>
+
+        <!-- Step 2: Getting Started -->
+        <div class="wizard-page" data-page="2">
+          <h1>📁 Let's Add Your Models</h1>
+          <p class="wizard-subtitle">Choose how you'd like to organize your 3D printing library</p>
+
+          <div class="setup-option-cards">
+            <div class="setup-option-card" onclick="setupQuickScan()">
+              <div class="option-icon">⚡</div>
+              <h3>Quick Scan</h3>
+              <p>Scan a folder right now and start exploring immediately</p>
+              <button class="action-button">Scan Folder</button>
+            </div>
+
+            <div class="setup-option-card" onclick="setupSTLHome()">
+              <div class="option-icon">🏠</div>
+              <h3>Set STL Home</h3>
+              <p>Configure your main models folder for automatic monitoring</p>
+              <button class="action-button">Configure</button>
+            </div>
+
+            <div class="setup-option-card">
+              <div class="option-icon">📚</div>
+              <h3>Import Collection</h3>
+              <p>Already have a Printventory collection? Import it here</p>
+              <button class="action-button" onclick="setupImportCollection()">Import</button>
+            </div>
+
+            <div class="setup-option-card">
+              <div class="option-icon">⏭️</div>
+              <h3>Skip for Now</h3>
+              <p>I'll add models later and explore the features first</p>
+              <button class="secondary-button">Skip</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Core Features -->
+        <div class="wizard-page" data-page="3">
+          <h1>🎯 Core Features Overview</h1>
+          <p class="wizard-subtitle">Master these essentials to get the most out of Printventory</p>
+
+          <div class="features-list">
+            <div class="feature-item">
+              <div class="feature-item-icon">🔍</div>
+              <div class="feature-item-content">
+                <h3>Smart Search & Filter</h3>
+                <p>Find any model instantly with powerful search, filters by designer, tags, file type, print status, and more</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>F</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">🏷️</div>
+              <div class="feature-item-content">
+                <h3>Tags & Collections</h3>
+                <p>Organize with tags, create smart collections that auto-update, and group related models together</p>
+                <div class="feature-shortcut">Menu: Collections → Smart Collections</div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">📋</div>
+              <div class="feature-item-content">
+                <h3>Print Queue & History</h3>
+                <p>Queue up models to print, track what you've printed, and record success rates and ratings</p>
+                <div class="feature-shortcut">Menu: Print → Print Queue</div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">⭐</div>
+              <div class="feature-item-content">
+                <h3>Favorites & Recent</h3>
+                <p>Bookmark your go-to models and quickly access recently viewed items</p>
+                <div class="feature-shortcut">Menu: Collections → Favorites</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Advanced Tools -->
+        <div class="wizard-page" data-page="4">
+          <h1>🚀 Advanced Features</h1>
+          <p class="wizard-subtitle">Power user tools to supercharge your workflow</p>
+
+          <div class="features-list">
+            <div class="feature-item">
+              <div class="feature-item-icon">🧵</div>
+              <div class="feature-item-content">
+                <h3>Filament Inventory</h3>
+                <p>Track all your spools, monitor usage, get low stock alerts, and calculate print costs automatically</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">💰</div>
+              <div class="feature-item-content">
+                <h3>Cost Tracking</h3>
+                <p>Automatic cost calculation for every print including filament and electricity costs</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">📅</div>
+              <div class="feature-item-content">
+                <h3>Print Calendar & Projects</h3>
+                <p>Schedule prints with deadlines, manage multi-part projects, and track completion progress</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">📁</div>
+              <div class="feature-item-content">
+                <h3>Model Groups</h3>
+                <p>Create hierarchical groups, assign thumbnails to folders, and organize collections your way</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">🎯</div>
+              <div class="feature-item-content">
+                <h3>Smart Recommendations</h3>
+                <p>Get Netflix-style suggestions for similar models, quick wins, and trending prints in your library</p>
+                <div class="feature-shortcut">Shortcut: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd></div>
+              </div>
+            </div>
+
+            <div class="feature-item">
+              <div class="feature-item-icon">⚙️</div>
+              <div class="feature-item-content">
+                <h3>Slicer Integration</h3>
+                <p>Save and reuse slicer profiles, remember settings per model, and track G-code locations</p>
+                <div class="feature-shortcut">Menu: Print → Slicer Profiles</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: Finish -->
+        <div class="wizard-page" data-page="5">
+          <h1>🎊 You're All Set!</h1>
+          <p class="wizard-subtitle">Ready to start organizing your 3D printing library</p>
+
+          <div class="completion-cards">
+            <div class="completion-card">
+              <h3>📖 Quick Resources</h3>
+              <ul>
+                <li><a href="#" onclick="startFeatureTour(); return false;">Take the Feature Tour</a></li>
+                <li><a href="#" onclick="openHelpDocumentation(); return false;">Browse Documentation</a></li>
+                <li><a href="#" onclick="openKeyboardShortcuts(); return false;">View Keyboard Shortcuts</a></li>
+                <li><a href="https://printventory.com/tutorials" target="_blank">Watch Video Tutorials</a></li>
+              </ul>
+            </div>
+
+            <div class="completion-card">
+              <h3>💬 Get Help & Support</h3>
+              <ul>
+                <li><a href="https://discord.gg/JXcZHT77ua" target="_blank">Join Discord Community</a></li>
+                <li><a href="https://github.com/TechJeeper/Printventory" target="_blank">GitHub Repository</a></li>
+                <li><a href="https://printventory.com/support.html" target="_blank">Support & FAQ</a></li>
+                <li><a href="https://patreon.com/Printventory" target="_blank">Support Development</a></li>
+              </ul>
+            </div>
+
+            <div class="completion-card">
+              <h3>⚡ Pro Tips</h3>
+              <ul>
+                <li>Use <kbd>Ctrl</kbd> + <kbd>Click</kbd> for multi-select</li>
+                <li>Right-click models for quick actions</li>
+                <li>Press <kbd>F1</kbd> to reopen this wizard</li>
+                <li>Enable File Watcher for automatic scanning</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="wizard-final-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="dont-show-wizard-again">
+              Don't show this wizard again
+            </label>
+          </div>
+        </div>
+
+        <!-- Wizard Navigation -->
+        <div class="wizard-navigation">
+          <button id="wizard-prev-btn" class="secondary-button" disabled>Previous</button>
+          <button id="wizard-skip-btn" class="secondary-button">Skip Tutorial</button>
+          <button id="wizard-next-btn" class="action-button">Next</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Feature Tour Overlay -->
+  <div id="feature-tour-overlay" class="tour-overlay" style="display: none;">
+    <div class="tour-backdrop"></div>
+    <div class="tour-spotlight"></div>
+    <div class="tour-tooltip">
+      <div class="tour-tooltip-header">
+        <h3 id="tour-tooltip-title"></h3>
+        <button class="tour-close-btn" onclick="endFeatureTour()">×</button>
+      </div>
+      <div class="tour-tooltip-content" id="tour-tooltip-content"></div>
+      <div class="tour-tooltip-footer">
+        <span class="tour-progress" id="tour-progress">1 / 10</span>
+        <div class="tour-nav-buttons">
+          <button class="secondary-button" id="tour-prev-btn" onclick="previousTourStep()">Previous</button>
+          <button class="action-button" id="tour-next-btn" onclick="nextTourStep()">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Documentation Panel -->
+  <dialog id="help-documentation-dialog" class="modal large-modal">
+    <form method="dialog">
+      <h3>📚 Help & Documentation</h3>
+      <div class="help-container">
+        <div class="help-sidebar">
+          <input type="text" id="help-search" placeholder="Search documentation..." class="help-search-input">
+          <div class="help-categories">
+            <div class="help-category active" data-category="getting-started">Getting Started</div>
+            <div class="help-category" data-category="organizing">Organizing Models</div>
+            <div class="help-category" data-category="printing">Printing & Queue</div>
+            <div class="help-category" data-category="inventory">Inventory & Costs</div>
+            <div class="help-category" data-category="advanced">Advanced Features</div>
+            <div class="help-category" data-category="shortcuts">Keyboard Shortcuts</div>
+            <div class="help-category" data-category="troubleshooting">Troubleshooting</div>
+          </div>
+        </div>
+        <div class="help-content" id="help-content-area">
+          <!-- Content loaded dynamically -->
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Keyboard Shortcuts Quick Reference -->
+  <dialog id="keyboard-shortcuts-dialog" class="modal">
+    <form method="dialog">
+      <h3>⌨️ Keyboard Shortcuts</h3>
+      <div class="shortcuts-grid">
+        <div class="shortcut-section">
+          <h4>General</h4>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>F</kbd>
+            <span>Focus Search</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>F1</kbd>
+            <span>Welcome Wizard</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>F5</kbd>
+            <span>Refresh View</span>
+          </div>
+        </div>
+
+        <div class="shortcut-section">
+          <h4>Collections</h4>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>
+            <span>Model Groups</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>G</kbd>
+            <span>Create Group</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>H</kbd>
+            <span>Hierarchical Search</span>
+          </div>
+        </div>
+
+        <div class="shortcut-section">
+          <h4>Inventory</h4>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
+            <span>Filament Inventory</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd>
+            <span>Cost Tracking</span>
+          </div>
+        </div>
+
+        <div class="shortcut-section">
+          <h4>Printing</h4>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>
+            <span>Print Calendar</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>
+            <span>Recommendations</span>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-buttons">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
   <script>
     document.getElementById('dismiss-welcome')?.addEventListener('click', () => {
       const welcomeDialog = document.getElementById('welcome-message');
