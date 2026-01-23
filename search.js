@@ -322,6 +322,8 @@ export async function initializeCombinedSearch() {
   const searchInput = document.getElementById("search-filter-input");
   const searchButton = document.getElementById("filter-search-button");
   const clearButton = document.getElementById("clear-filter-search-button");
+  const parentCardToggle = document.getElementById("search-parent-cards-toggle");
+  const parentCardToggleText = document.getElementById("search-parent-cards-toggle-text");
 
   if (!searchInput || !searchButton || !clearButton) {
     console.error("Combined search elements not found in filter menu!");
@@ -468,6 +470,22 @@ export async function initializeCombinedSearch() {
       clearButton.style.display = "none";
     }
   });
+
+  const updateParentCardToggleText = () => {
+    if (!parentCardToggle || !parentCardToggleText) return;
+    parentCardToggleText.textContent = parentCardToggle.checked ? "Enabled" : "Disabled";
+  };
+
+  updateParentCardToggleText();
+
+  if (parentCardToggle) {
+    parentCardToggle.addEventListener("change", async () => {
+      console.log("Parent card toggle changed:", parentCardToggle.checked);
+      updateParentCardToggleText();
+      window.viewingEntireLibrary = false;
+      await performCombinedSearch();
+    });
+  }
 }
 
 // Make sure renderFiles is accessible
@@ -504,6 +522,7 @@ function toggleFilterControls(enabled) {
     'search-filter-input',
     'filter-search-button',
     'clear-filter-search-button',
+    'search-parent-cards-toggle',
     'view-library-button'
   ];
   

@@ -9006,9 +9006,26 @@ async function renderFiles(files, skipThumbnail = false, viewEntireLibrary = fal
   }
 
   const parentFilter = document.getElementById('parent-select')?.value || '';
+  const tagFilter = document.getElementById('tag-filter')?.value || '';
+  const searchTerm = document.getElementById('search-filter-input')?.value.trim() || '';
+  const designer = document.getElementById('designer-select')?.value || '';
+  const license = document.getElementById('license-select')?.value || '';
+  const printStatus = document.getElementById('printed-select')?.value || 'all';
+  const fileType = document.getElementById('filetype-select')?.value || '';
+  const hasActiveFilters = designer ||
+    license ||
+    parentFilter ||
+    printStatus !== 'all' ||
+    tagFilter ||
+    fileType ||
+    searchTerm ||
+    window.currentDirectoryFilter ||
+    window.dateAddedFilter;
+  const parentCardToggle = document.getElementById('search-parent-cards-toggle');
+  const showParentCardsInSearch = parentCardToggle ? parentCardToggle.checked : true;
   let filesToRender = files;
 
-  if (!parentFilter) {
+  if (!parentFilter && (!hasActiveFilters || showParentCardsInSearch)) {
     filesToRender = await buildParentCardModels(files);
   }
 
